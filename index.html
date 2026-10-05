@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pet Rounds – visit planner for dog walkers and cat sitters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f4;--card:#fff;--ink:#14262d;--mute:#5d7078;--line:#d5e0e3;--brand:#17636e;--brand-d:#0f4a53;--dog:#d98a1f;--cat:#6c5bd0;--lock:#e3edf0;--warn:#b3361f;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 Figtree,system-ui,sans-serif}
+h1,h2,h3{font-family:'Bricolage Grotesque',Figtree,sans-serif;margin:0;line-height:1.15}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 14px 60px}
+header.top{background:var(--brand-d);color:#fff}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px}
+.logo{font:800 22px 'Bricolage Grotesque',sans-serif}
+.session{display:flex;align-items:center;gap:8px;font-size:14px}
+.session .dot{width:9px;height:9px;border-radius:50%;background:#5fe08f}
+.session span.em{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{border:1px solid var(--line);background:var(--card);padding:8px 14px;border-radius:8px;font-weight:600}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-d)}
+.btn.ghost-w{background:transparent;border-color:#ffffff66;color:#fff;padding:5px 10px;font-size:14px}
+.btn.danger{color:var(--warn)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:20px 0 6px}
+.bar h2{font-size:26px}
+.nav{display:flex;gap:6px}
+.login{max-width:400px;margin:70px auto;background:var(--card);padding:28px;border-radius:14px;border:1px solid var(--line)}
+.login h1{font-size:30px;margin-bottom:6px}
+.login p{color:var(--mute);margin:0 0 18px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+input[type=text],input[type=email],input[type=date],input[type=time],select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}
+textarea{min-height:60px;resize:vertical}
+.month{margin-top:26px}
+.month h3{font-size:22px;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.dow{font-size:12px;color:var(--mute);text-align:center;font-weight:600}
+.day{min-height:78px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:5px 6px;text-align:left;display:flex;flex-direction:column;justify-content:space-between}
+.day:hover{border-color:var(--brand)}
+.day .n{font-weight:600;font-size:14px}
+.day.we{background:#f8faf4}
+.day.past{opacity:.55}
+.day.today{border:2px solid var(--brand)}
+.day.locked{background:var(--lock);border-style:dashed}
+.day .pets{display:flex;gap:3px;flex-wrap:wrap}
+.pip{width:9px;height:9px;border-radius:50%}
+.pip.Dog{background:var(--dog)}.pip.Cat{background:var(--cat)}
+.day .earn{font:800 14px 'Bricolage Grotesque',sans-serif;color:var(--brand)}
+.day .earn.zero{color:#a9b9be;font-weight:600}
+.blank{visibility:hidden}
+.weeks{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:30px}
+.weeks p.sub{color:var(--mute);margin:4px 0 12px;font-size:14px}
+.wk{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 0;border-top:1px solid var(--line)}
+.wk .info{flex:1 1 200px}
+.wk .info b{display:block}
+.wk .info small{color:var(--mute)}
+.tag{font-size:12px;font-weight:600;background:var(--lock);padding:2px 8px;border-radius:99px;color:var(--brand-d)}
+dialog{border:0;border-radius:16px;padding:0;width:min(560px,94vw);max-height:92vh;box-shadow:0 20px 60px #0004}
+dialog::backdrop{background:#0a1a2099}
+.dlg{padding:20px}
+.dlg h2{font-size:24px;margin-bottom:8px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:480px){.row{grid-template-columns:1fr}.day{min-height:64px;padding:3px 4px}.day .earn{font-size:12px}.grid{gap:3px}}
+.choices{display:flex;gap:8px;flex-wrap:wrap}
+.choices label{margin:0;font-weight:500;cursor:pointer}
+.choices input{position:absolute;opacity:0}
+.choices span{display:inline-block;padding:8px 14px;border:1px solid var(--line);border-radius:99px}
+.choices input:checked+span{background:var(--brand);color:#fff;border-color:var(--brand)}
+.choices input:focus-visible+span{outline:3px solid var(--brand);outline-offset:2px}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.visit{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.visit .h{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.visit small{display:block;color:var(--mute)}
+.preview{background:#f6f9fa;border:1px solid var(--line);border-radius:10px;padding:12px;max-height:46vh;overflow:auto;font-size:14px;white-space:pre-wrap}
+.msg{color:var(--warn);font-size:14px;min-height:20px}
+.empty{color:var(--mute);margin:10px 0}
+.banner{background:#fff6e0;border:1px solid #f0d9a0;border-radius:10px;padding:10px 14px;margin:10px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.tag.paid{background:#d9f2e1;color:#14572d}
+details summary{cursor:pointer;font-size:14px;color:var(--brand);font-weight:600}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-size:14px}
+th:first-child,td:first-child{text-align:left}
+.pip.done{box-shadow:0 0 0 2px #5fe08f}
+@media print{#app,header.top{display:none}dialog{position:static;box-shadow:none;width:100%;max-height:none}dialog::backdrop{display:none}.actions,#rd,label[for=rd]{display:none}}
+@media(prefers-reduced-motion:no-preference){dialog[open]{animation:pop .15s ease-out}@keyframes pop{from{transform:scale(.97);opacity:0}}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+
+<script>
+(() => {
+'use strict';
+const WEEKDAY_PRICE = 12, WEEKEND_PRICE = 15;
+const SLOTS = {Morning:'08:00', Afternoon:'13:00', Evening:'18:00'};
+const ACCESS = ['Client provided key','Key safe / Lockbox code','Owner will be home'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const key = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = k => { const [y,m,d] = k.split('-').map(Number); return new Date(y,m-1,d); };
+const money = n => '£' + (Number.isInteger(n) ? n : n.toFixed(2));
+const priceFor = k => [0,6].includes(parse(k).getDay()) ? WEEKEND_PRICE : WEEKDAY_PRICE;
+const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const fmtDay = d => d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+const todayKey = key(new Date());
+
+const DEFAULT_SERVICE = 'Pets, Paws and More';
+let state = { user: localStorage.getItem('petrounds:session'), service: localStorage.getItem('petrounds:service') || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
+
+function load(){
+  if(!state.user) return;
+  try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; } } catch(e){}
+}
+function save(){
+  try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay})); } catch(e){}
+}
+const visitsOn = k => state.visits.filter(v => v.date === k).sort((a,b) => a.time.localeCompare(b.time));
+const isLocked = k => !!state.locked[key(mondayOf(parse(k)))];
+const visitPrice = v => typeof v.price === 'number' ? v.price : priceFor(v.date);
+const sumPrice = vs => vs.reduce((s,v) => s + visitPrice(v), 0);
+const dayTotal = k => sumPrice(visitsOn(k));
+function weekVisits(mk){
+  const start = parse(mk), ks = Array.from({length:7},(_,i)=>key(addDays(start,i)));
+  return state.visits.filter(v => ks.includes(v.date)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+}
+const weekTotal = mk => sumPrice(weekVisits(mk));
+
+const fmtLong = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+function households(mk){
+  const m = {};
+  weekVisits(mk).forEach(v => { const e = (v.hemail||'').toLowerCase(); (m[e] = m[e] || {email:e, name:v.hname||'Household', visits:[]}).visits.push(v); });
+  return Object.values(m);
+}
+const inv = (mk,e) => state.invoices[mk+'|'+e] || {};
+const invNo = (mk,e) => 'INV-' + mk.replace(/-/g,'') + '-' + String(Math.abs([...e].reduce((a,c) => (a*31 + c.charCodeAt(0))|0, 7)) % 1000).padStart(3,'0');
+function invoiceText(mk,h){
+  const s = parse(mk), e = addDays(s,6), L = [];
+  L.push(`INVOICE ${invNo(mk,h.email)}`, state.service, `From: ${state.user}`, '', `To: ${h.name}${h.email ? ' <'+h.email+'>' : ''}`,
+    `Issued: ${fmtLong(e)}`, `Due: ${fmtLong(addDays(e,7))}`, `Week: ${fmtDay(s)} to ${fmtDay(e)}`, '');
+  h.visits.forEach(v => L.push(`${fmtDay(parse(v.date))} ${v.time}  ${v.name} (${v.type})  ${money(visitPrice(v))}`));
+  L.push('', `TOTAL DUE: ${money(sumPrice(h.visits))}`);
+  if(state.pay) L.push('', 'How to pay:', state.pay);
+  L.push('', 'Thank you!');
+  return L.join('\n');
+}
+function dueWeeks(){
+  const mons = [...new Set(state.visits.map(v => key(mondayOf(parse(v.date)))))].sort();
+  return mons.filter(mk => key(addDays(parse(mk),6)) < todayKey && households(mk).some(h => !inv(mk,h.email).sent));
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  const app = $('#app');
+  if(!state.user){
+    app.innerHTML = `<form class="login" id="loginForm">
+      <h1>Pet Rounds</h1><p>Plan your dog walks and cat sitting visits, and see what each day earns.</p>
+      <label for="svc">Name of service</label><input type="text" id="svc" required maxlength="60" value="${esc(state.service)}" autocomplete="organization">
+      <label for="em">Email address</label><input type="email" id="em" required autocomplete="email" placeholder="you@example.com">
+      <div class="msg" id="loginMsg"></div>
+      <button class="btn primary" style="width:100%;margin-top:6px">Log in</button>
+      <p style="font-size:13px;margin-top:14px">Demo login: your visits are saved on this device only. No password needed.</p></form>`;
+    $('#loginForm').onsubmit = e => {
+      e.preventDefault();
+      const v = $('#em').value.trim().toLowerCase();
+      if(!/^\S+@\S+\.\S+$/.test(v)){ $('#loginMsg').textContent = 'Enter a valid email address, like you@example.com.'; return; }
+      const svc = $('#svc').value.trim();
+      if(!svc){ $('#loginMsg').textContent = 'Enter the name of your service, like Pets, Paws and More.'; return; }
+      state.user = v; state.service = svc;
+      localStorage.setItem('petrounds:session', v); localStorage.setItem('petrounds:service', svc); load(); render();
+    };
+    return;
+  }
+  const now = new Date(), first = new Date(now.getFullYear(), now.getMonth()+state.offset, 1);
+  const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
+  app.innerHTML = `
+  <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
+    <div class="session"><i class="dot" aria-hidden="true"></i><span class="em" title="${esc(state.user)}">${esc(state.user)}</span>
+    <button class="btn ghost-w" id="logout">Log out</button></div></div></header>
+  <main class="wrap">
+    <div class="bar"><h2>${MONTHS[months[0].getMonth()]} to ${MONTHS[months[2].getMonth()]} ${months[2].getFullYear()}</h2>
+      <div class="nav"><button class="btn" id="prev" aria-label="Earlier months">‹</button><button class="btn" id="today">Today</button><button class="btn" id="next" aria-label="Later months">›</button>
+      <button class="btn primary" id="add">Add visit</button></div></div>
+    <p class="empty" style="margin-top:0">Each visit starts at ${money(WEEKDAY_PRICE)} on weekdays or ${money(WEEKEND_PRICE)} at weekends, and you can set your own price per visit. Tap a day to see or add visits.</p>
+    <div class="nav" style="flex-wrap:wrap"><button class="btn" id="runsheet">Run sheet</button><button class="btn" id="earn">Earnings</button><button class="btn" id="bk">Backup</button><button class="btn" id="rs">Restore</button><input type="file" id="rf" accept="application/json" hidden></div>
+    ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
+    ${months.map(monthHtml).join('')}
+    <section class="weeks" id="weeks"></section>
+  </main>`;
+  $('#logout').onclick = () => { localStorage.removeItem('petrounds:session'); state = {user:null,service:state.service,visits:[],locked:{},invoices:{},pay:'',offset:0}; render(); };
+  $('#prev').onclick = () => { state.offset--; render(); };
+  $('#next').onclick = () => { state.offset++; render(); };
+  $('#today').onclick = () => { state.offset = 0; render(); };
+  $('#add').onclick = () => openAdd(todayKey);
+  $('#runsheet').onclick = () => openRun(todayKey);
+  $('#earn').onclick = openEarn;
+  $('#bk').onclick = () => {
+    const b = new Blob([JSON.stringify({service:state.service, visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay}, null, 1)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `pet-rounds-backup-${todayKey}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('#rs').onclick = () => $('#rf').click();
+  $('#rf').onchange = async e => {
+    const file = e.target.files[0]; if(!file) return;
+    try {
+      const d = JSON.parse(await file.text()); if(!Array.isArray(d.visits)) throw 0;
+      if(!confirm('Replace all current data with this backup?')) return;
+      state.visits = d.visits; state.locked = d.locked||{}; state.invoices = d.invoices||{}; state.pay = d.pay||'';
+      if(d.service){ state.service = d.service; localStorage.setItem('petrounds:service', d.service); }
+      save(); render();
+    } catch(err){ alert('That file is not a Pet Rounds backup.'); }
+  };
+  document.querySelectorAll('.day[data-k]').forEach(b => b.onclick = () => openDay(b.dataset.k));
+  renderWeeks(months);
+}
+
+function monthHtml(m){
+  const y = m.getFullYear(), mo = m.getMonth(), days = new Date(y,mo+1,0).getDate(), lead = (m.getDay()+6)%7;
+  let cells = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  cells += '<div class="blank"></div>'.repeat(lead);
+  let total = 0;
+  for(let d=1; d<=days; d++){
+    const k = `${y}-${pad(mo+1)}-${pad(d)}`, vs = visitsOn(k), t = sumPrice(vs), wd = parse(k).getDay();
+    total += t;
+    const cls = ['day', [0,6].includes(wd)?'we':'', k<todayKey?'past':'', k===todayKey?'today':'', isLocked(k)?'locked':''].join(' ');
+    cells += `<button class="${cls}" data-k="${k}" aria-label="${fmtDay(parse(k))}, ${vs.length} visits, ${money(t)}${isLocked(k)?', week locked':''}">
+      <span class="n">${d}${isLocked(k)?' 🔒':''}</span>
+      <span class="pets">${vs.slice(0,6).map(v=>`<i class="pip ${v.type}${v.done?' done':''}"></i>`).join('')}</span>
+      <span class="earn ${t?'':'zero'}">${money(t)}</span></button>`;
+  }
+  return `<section class="month"><h3>${MONTHS[mo]} ${y} <small style="font:500 15px Figtree;color:var(--mute)">${money(total)} booked</small></h3><div class="grid">${cells}</div></section>`;
+}
+
+function renderWeeks(months){
+  const start = mondayOf(months[0]), end = new Date(months[2].getFullYear(), months[2].getMonth()+1, 0);
+  const todayMon = key(mondayOf(new Date()));
+  let html = `<h3>Weekly lock and summary</h3><p class="sub">Lock a week once it is final. Locked weeks can't be edited, and you can send the client list as a weekly summary.</p>`;
+  for(let d = start; d <= end; d = addDays(d,7)){
+    const mk = key(d); if(mk < todayMon) continue;
+    const vs = weekVisits(mk), lk = !!state.locked[mk];
+    html += `<div class="wk"><div class="info"><b>${fmtDay(d)} to ${fmtDay(addDays(d,6))} ${lk?'<span class="tag">Locked</span>':''}</b>
+      <small>${vs.length} visit${vs.length===1?'':'s'} · ${money(weekTotal(mk))}</small></div>
+      <button class="btn" data-lock="${mk}">${lk?'Unlock week':'Lock week'}</button>
+      ${lk?`<button class="btn" data-send="${mk}">Send Weekly Summary Email</button><button class="btn primary" data-inv="${mk}">Invoices</button>`:''}</div>`;
+  }
+  $('#weeks').innerHTML = html;
+  document.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => {
+    const mk = b.dataset.lock;
+    if(state.locked[mk]) delete state.locked[mk]; else state.locked[mk] = true;
+    save(); render();
+  });
+  document.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
+  document.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
+}
+
+/* ---------- dialogs ---------- */
+const dlg = $('#dlg');
+const show = html => { $('#dlgBody').innerHTML = html; if(!dlg.open) dlg.showModal(); };
+const close = () => dlg.close();
+
+function toggleDone(id){ state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
+
+function openDay(k){
+  const vs = visitsOn(k), lk = isLocked(k), d = parse(k);
+  show(`<h2>${d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</h2>
+    <p class="empty" style="margin-top:0">${vs.length} visit${vs.length===1?'':'s'} · ${money(dayTotal(k))}${lk?' · week locked':''}</p>
+    ${vs.length ? vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} (${v.type}) · ${money(visitPrice(v))}</span>
+      <span style="display:flex;gap:4px"><button class="btn" data-edit="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Edit</button><button class="btn" data-copy="${v.id}" style="padding:2px 10px">Copy</button><button class="btn danger" data-del="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Delete</button></span></div>
+      <small>${esc(v.address)}, ${esc(v.postcode)} · ${esc(v.slot)}${v.hname ? ' · ' + esc(v.hname) : ''}</small><label style="margin:2px 0;font-weight:500"><input type="checkbox" data-done="${v.id}" ${v.done?'checked':''}> Done</label><small>Access: ${esc(v.access)}${v.keycode?' ('+esc(v.keycode)+')':''}</small>
+      ${v.food?`<small>Food: ${esc(v.food)}</small>`:''}${v.meds?`<small>Medication: ${esc(v.meds)}</small>`:''}${v.notes?`<small>Notes: ${esc(v.notes)}</small>`:''}</div>`).join('')
+      : '<p class="empty">No visits yet. Add the first one for this day.</p>'}
+    <div class="actions"><button class="btn" id="x">Close</button><button class="btn primary" id="addHere" ${lk?'disabled':''}>Add visit on this day</button></div>`);
+  $('#x').onclick = close;
+  $('#addHere').onclick = () => openAdd(k);
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openAdd(k, vs.find(v => v.id === b.dataset.edit)));
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => openAdd(k, {...vs.find(v => v.id === b.dataset.copy), id:'', date:k}));
+  document.querySelectorAll('[data-done]').forEach(b => b.onchange = () => { toggleDone(b.dataset.done); render(); openDay(k); });
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    state.visits = state.visits.filter(v => v.id !== b.dataset.del); save(); render(); openDay(k);
+  });
+}
+
+function openAdd(k, ed){
+  const pets = [...new Map(state.visits.map(v => [(v.name+'|'+v.hemail).toLowerCase(), v])).values()];
+  show(`<h2>${ed && ed.id ? 'Edit visit' : 'Add new visit'}</h2><form id="vf">
+    ${pets.length && !ed ? `<label for="f-pet">Use a saved pet</label><select id="f-pet"><option value="">New pet</option>${pets.map((v,i) => `<option value="${i}">${esc(v.name)} (${esc(v.hname || v.hemail)})</option>`).join('')}</select>` : ''}
+    <div class="row"><div><label for="f-name">Animal name</label><input type="text" id="f-name" required></div>
+    <div><label for="f-date">Date</label><input type="date" id="f-date" value="${k}" ${ed && ed.id ? '' : 'min="' + todayKey + '"'} required></div></div>
+    <div class="row"><div><label for="f-hn">Household name</label><input type="text" id="f-hn" required></div>
+    <div><label for="f-he">Household email (for invoices)</label><input type="email" id="f-he" required list="hh" autocomplete="off"></div></div>
+    <datalist id="hh">${[...new Map(state.visits.filter(v=>v.hemail).map(v=>[v.hemail,v])).values()].map(v=>`<option value="${esc(v.hemail)}">${esc(v.hname)}</option>`).join('')}</datalist>
+    <label>Pet type</label><div class="choices">
+      <label><input type="radio" name="type" value="Dog" checked><span>🐕 Dog</span></label>
+      <label><input type="radio" name="type" value="Cat"><span>🐈 Cat</span></label></div>
+    <div class="row"><div><label for="f-addr">Address</label><input type="text" id="f-addr" required></div>
+    <div><label for="f-pc">Postcode</label><input type="text" id="f-pc" required autocapitalize="characters"></div></div>
+    <label>Time slot</label><div class="choices">${Object.keys(SLOTS).map((s,i)=>`<label><input type="radio" name="slot" value="${s}" ${i===0?'checked':''}><span>${s}</span></label>`).join('')}</div>
+    <label for="f-price">Price for this visit (£)</label><input type="number" id="f-price" min="0" step="0.5" inputmode="decimal" required>
+    <p class="empty" id="priceHint" style="margin:4px 0 0;font-size:13px"></p>
+    <label for="f-time">Exact time</label><input type="time" id="f-time" value="08:00" required>
+    ${ed && ed.id ? '' : `<div class="row"><div><label for="f-rep">Repeat</label><select id="f-rep"><option value="">Does not repeat</option><option value="d">Every day</option><option value="wd">Every weekday</option><option value="w">Every week, same day</option></select></div>
+    <div><label for="f-until">Repeat until</label><input type="date" id="f-until"></div></div>`}
+    <label for="f-food">Food preferences</label><textarea id="f-food" placeholder="e.g. half a pouch of chicken, wet food only"></textarea>
+    <label for="f-meds">Medication</label><input type="text" id="f-meds" placeholder="e.g. one tablet in food, morning only">
+    <label for="f-notes">General instructions</label><textarea id="f-notes" placeholder="e.g. Put bin out, water plants"></textarea>
+    <label for="f-acc">Access method</label><select id="f-acc">${ACCESS.map(a=>`<option>${a}</option>`).join('')}</select>
+    <div id="kcWrap" hidden><label for="f-kc">Key safe / lockbox code</label><input type="text" id="f-kc"></div>
+    <div class="msg" id="fm"></div>
+    <div class="actions"><button type="button" class="btn" id="x">Cancel</button><button class="btn primary">Save visit</button></div></form>`);
+  const f = $('#vf');
+  $('#x').onclick = close;
+  $('#f-he').onchange = e => { const m = state.visits.find(v => v.hemail === e.target.value.trim().toLowerCase()); if(m && !$('#f-hn').value) $('#f-hn').value = m.hname; };
+  let priceEdited = false;
+  const syncPrice = () => {
+    const d = $('#f-date').value, def = d ? priceFor(d) : WEEKDAY_PRICE;
+    $('#priceHint').textContent = `Standard rate for this day: ${money(def)}. Change it for a longer or special visit.`;
+    if(!priceEdited) $('#f-price').value = def;
+  };
+  $('#f-price').oninput = () => { priceEdited = true; };
+  $('#f-date').onchange = syncPrice;
+  syncPrice();
+  f.querySelectorAll('[name=slot]').forEach(r => r.onchange = () => $('#f-time').value = SLOTS[r.value]);
+  $('#f-time').onchange = e => {
+    const h = +e.target.value.slice(0,2), s = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+    f.querySelector(`[name=slot][value=${s}]`).checked = true;
+  };
+  $('#f-acc').onchange = e => { $('#kcWrap').hidden = !e.target.value.startsWith('Key safe'); };
+  const fill = (v, withDate) => {
+    const set = (id, val) => { $('#'+id).value = val ?? ''; };
+    set('f-name',v.name); set('f-hn',v.hname); set('f-he',v.hemail); set('f-addr',v.address); set('f-pc',v.postcode);
+    set('f-time',v.time || '08:00'); set('f-food',v.food); set('f-meds',v.meds); set('f-notes',v.notes);
+    if(withDate) set('f-date',v.date);
+    f.querySelector(`[name=type][value=${v.type || 'Dog'}]`).checked = true;
+    f.querySelector(`[name=slot][value=${v.slot || 'Morning'}]`).checked = true;
+    $('#f-acc').value = v.access || ACCESS[0]; $('#kcWrap').hidden = !$('#f-acc').value.startsWith('Key safe'); set('f-kc',v.keycode);
+    if(typeof v.price === 'number'){ set('f-price',v.price); priceEdited = true; }
+    syncPrice();
+  };
+  if($('#f-pet')) $('#f-pet').onchange = e => { if(e.target.value !== '') fill(pets[e.target.value]); };
+  if(ed) fill(ed, true);
+  f.onsubmit = e => {
+    e.preventDefault();
+    const date = $('#f-date').value;
+    if(date < todayKey && !(ed && ed.id)){ $('#fm').textContent = 'Choose today or a future date.'; return; }
+    const price = parseFloat($('#f-price').value);
+    if(!(price >= 0)){ $('#fm').textContent = 'Enter a price of £0 or more.'; return; }
+    if(isLocked(date)){ $('#fm').textContent = 'That week is locked. Unlock it to add visits.'; return; }
+    const base = {
+      price: Math.round(price*100)/100,
+      hname: $('#f-hn').value.trim(), hemail: $('#f-he').value.trim().toLowerCase(), name: $('#f-name').value.trim(), type: f.type.value, address: $('#f-addr').value.trim(),
+      postcode: $('#f-pc').value.trim().toUpperCase(), slot: f.slot.value, time: $('#f-time').value,
+      food: $('#f-food').value.trim(), meds: $('#f-meds').value.trim(), notes: $('#f-notes').value.trim(),
+      access: $('#f-acc').value, keycode: $('#f-acc').value.startsWith('Key safe') ? $('#f-kc').value.trim() : ''
+    };
+    if(ed && ed.id){
+      state.visits = state.visits.map(v => v.id === ed.id ? {...v, ...base, date} : v);
+    } else {
+      const rp = $('#f-rep').value, until = $('#f-until').value;
+      let dates = [date];
+      if(rp){
+        if(!until || until < date){ $('#fm').textContent = 'Choose a repeat-until date on or after the visit date.'; return; }
+        dates = [];
+        for(let d = parse(date); key(d) <= until && dates.length < 120; d = addDays(d, rp === 'w' ? 7 : 1)){
+          if(rp === 'wd' && [0,6].includes(d.getDay())) continue;
+          dates.push(key(d));
+        }
+      }
+      const open = dates.filter(x => !isLocked(x));
+      open.forEach((x,i) => state.visits.push({...base, date:x, id:'v' + Date.now() + i + Math.random().toString(36).slice(2,5), price: (rp && !priceEdited) ? undefined : base.price}));
+      if(open.length < dates.length) alert((dates.length - open.length) + ' visit(s) in locked weeks were skipped.');
+    }
+    save(); close(); render();
+  };
+}
+
+function summaryText(mk){
+  const vs = weekVisits(mk), s = parse(mk), e = addDays(s,6), L = [];
+  L.push(`Weekly visit summary: ${fmtDay(s)} to ${fmtDay(e)} ${e.getFullYear()}`, `Service: ${state.service}`, `Sitter: ${state.user}`,
+    `Total visits: ${vs.length}`, `Total expected revenue: ${money(weekTotal(mk))}`, '');
+  let cur = '';
+  vs.forEach(v => {
+    if(v.date !== cur){ cur = v.date; L.push(fmtDay(parse(v.date)).toUpperCase()); }
+    L.push(`  ${v.time} ${v.name} (${v.type}), ${money(visitPrice(v))}`,
+      `    Address: ${v.address}, ${v.postcode}`,
+      `    Access: ${v.access}${v.keycode ? ' (code: ' + v.keycode + ')' : ''}`);
+    if(v.food) L.push(`    Food: ${v.food}`);
+    if(v.meds) L.push(`    Medication: ${v.meds}`);
+    if(v.notes) L.push(`    Instructions: ${v.notes}`);
+    L.push('');
+  });
+  if(!vs.length) L.push('No visits booked this week.');
+  return L.join('\n');
+}
+
+function openRun(k){
+  const vs = visitsOn(k);
+  show(`<h2>Run sheet</h2><label for="rd">Date</label><input type="date" id="rd" value="${k}">
+    <p class="empty">${fmtLong(parse(k))} · ${vs.length} visit${vs.length===1?'':'s'} · ${money(sumPrice(vs))}</p>
+    ${vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} (${v.type})</span><span>${money(visitPrice(v))}</span></div>
+      <small>${esc(v.address)}, ${esc(v.postcode)}${v.hname ? ' · ' + esc(v.hname) : ''}</small>
+      <small>Access: ${esc(v.access)}${v.keycode ? ' (code: ' + esc(v.keycode) + ')' : ''}</small>
+      ${v.food ? `<small>Food: ${esc(v.food)}</small>` : ''}${v.meds ? `<small>Medication: ${esc(v.meds)}</small>` : ''}${v.notes ? `<small>Notes: ${esc(v.notes)}</small>` : ''}
+      <label style="margin:4px 0 0;font-weight:500"><input type="checkbox" data-done="${v.id}" ${v.done ? 'checked' : ''}> Done</label></div>`).join('') || '<p class="empty">No visits on this day.</p>'}
+    <div class="actions"><button class="btn" id="x">Close</button><button class="btn primary" id="pr">Print</button></div>`);
+  $('#x').onclick = close;
+  $('#pr').onclick = () => window.print();
+  $('#rd').onchange = e => { if(e.target.value) openRun(e.target.value); };
+  document.querySelectorAll('[data-done]').forEach(b => b.onchange = () => { toggleDone(b.dataset.done); render(); openRun(k); });
+}
+
+function openEarn(){
+  const n = new Date(), wk = key(mondayOf(n)), m0 = key(new Date(n.getFullYear(), n.getMonth(), 1)),
+    m1 = key(new Date(n.getFullYear(), n.getMonth()+1, 1)), m2 = key(new Date(n.getFullYear(), n.getMonth()+2, 1));
+  const per = [['This week', v => key(mondayOf(parse(v.date))) === wk], ['This month', v => v.date >= m0 && v.date < m1],
+    ['Next month', v => v.date >= m1 && v.date < m2], ['Upcoming', v => v.date >= todayKey], ['All booked', () => true]];
+  let owed = 0, paid = 0;
+  Object.keys(state.invoices).forEach(k => {
+    const [mk, em] = k.split('|'), h = households(mk).find(x => x.email === em), st = state.invoices[k];
+    if(!h) return;
+    if(st.paid) paid += sumPrice(h.visits); else if(st.sent) owed += sumPrice(h.visits);
+  });
+  show(`<h2>Earnings</h2><table><tr><th></th><th>Visits</th><th>Dogs</th><th>Cats</th><th>Total</th></tr>
+    ${per.map(([name,f]) => { const vs = state.visits.filter(f);
+      return `<tr><td>${name}</td><td>${vs.length}</td><td>${money(sumPrice(vs.filter(v => v.type==='Dog')))}</td><td>${money(sumPrice(vs.filter(v => v.type==='Cat')))}</td><td><b>${money(sumPrice(vs))}</b></td></tr>`; }).join('')}</table>
+    <p class="empty">Invoices paid: <b>${money(paid)}</b> · Invoiced and still unpaid: <b>${money(owed)}</b></p>
+    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+}
+
+function openInvoices(mk){
+  if(!state.locked[mk]){ state.locked[mk] = true; save(); render(); }
+  const hs = households(mk), s = parse(mk), e = addDays(s,6);
+  show(`<h2>Invoices: ${fmtDay(s)} to ${fmtDay(e)}</h2>
+    <p class="empty" style="margin-top:0">One invoice per household, due 7 days after the week ends. Email invoice opens your email app with the invoice filled in. Invoicing locks the week.</p>
+    <label for="pay">Payment details (shown on every invoice)</label><textarea id="pay" placeholder="e.g. Bank transfer to 00-00-00, account 00000000, reference: invoice number">${esc(state.pay)}</textarea>
+    ${hs.map((h,i) => { const st = inv(mk,h.email); return `<div class="visit"><div class="h"><span>${esc(h.name)}</span><span>${money(sumPrice(h.visits))}</span></div>
+      <small>${esc(h.email || 'No email saved for this household')} · ${h.visits.length} visit${h.visits.length===1?'':'s'}</small>
+      <div style="margin:6px 0">${st.sent?'<span class="tag">Sent</span> ':''}${st.paid?'<span class="tag paid">Paid</span>':''}</div>
+      <details><summary>View invoice</summary><div class="preview" style="margin-top:6px">${esc(invoiceText(mk,h))}</div></details>
+      <div class="actions" style="margin-top:8px"><button class="btn" data-paid="${i}">${st.paid?'Mark unpaid':'Mark paid'}</button>
+      <button class="btn primary" data-mail="${i}" ${h.email?'':'disabled'}>${st.sent?'Resend invoice':'Email invoice'}</button></div></div>`; }).join('') || '<p class="empty">No visits this week.</p>'}
+    <div class="actions"><button class="btn" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+  $('#pay').oninput = ev => { state.pay = ev.target.value; save(); };
+  document.querySelectorAll('[data-paid]').forEach(b => b.onclick = () => {
+    const h = hs[b.dataset.paid], k = mk+'|'+h.email;
+    state.invoices[k] = {...inv(mk,h.email), paid: !inv(mk,h.email).paid}; save(); render(); openInvoices(mk);
+  });
+  document.querySelectorAll('[data-mail]').forEach(b => b.onclick = () => {
+    const h = hs[b.dataset.mail];
+    state.invoices[mk+'|'+h.email] = {...inv(mk,h.email), sent:true}; save();
+    location.href = `mailto:${encodeURIComponent(h.email)}?subject=${encodeURIComponent(state.service + ' invoice ' + invNo(mk,h.email))}&body=${encodeURIComponent(invoiceText(mk,h))}`;
+    setTimeout(() => { render(); openInvoices(mk); }, 300);
+  });
+}
+
+function openSummary(mk){
+  const txt = summaryText(mk);
+  show(`<h2>Weekly summary email</h2><p class="empty" style="margin-top:0">Check the draft, then copy it or open it in your email app.</p>
+    <label for="to">Send to</label><input type="email" id="to" placeholder="recipient@example.com">
+    <label>Draft</label><div class="preview" id="pv">${esc(txt)}</div>
+    <div class="actions"><button class="btn" id="x">Close</button><button class="btn" id="cp">Copy text</button><button class="btn primary" id="mail">Open in email app</button></div>`);
+  $('#x').onclick = close;
+  $('#cp').onclick = async () => {
+    try { await navigator.clipboard.writeText(txt); $('#cp').textContent = 'Copied'; } catch(e){ $('#cp').textContent = 'Copy failed, select the text instead'; }
+  };
+  $('#mail').onclick = () => {
+    const s = parse(mk);
+    location.href = `mailto:${encodeURIComponent($('#to').value.trim())}?subject=${encodeURIComponent(state.service + ' – weekly visit summary: week of ' + fmtDay(s))}&body=${encodeURIComponent(txt)}`;
+  };
+}
+
+load(); render();
+})();
+</script>
+</body>
+</html>
