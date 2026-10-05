@@ -289,7 +289,7 @@ function openDay(k){
     ${vs.length ? vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} (${v.type}) · ${money(visitPrice(v))}</span>
       <span style="display:flex;gap:4px"><button class="btn" data-edit="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Edit</button><button class="btn" data-copy="${v.id}" style="padding:2px 10px">Copy</button><button class="btn danger" data-del="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Delete</button></span></div>
       <small>${esc(v.address)}, ${esc(v.postcode)} · ${esc(v.slot)}${v.hname ? ' · ' + esc(v.hname) : ''}</small><label style="margin:2px 0;font-weight:500"><input type="checkbox" data-done="${v.id}" ${v.done?'checked':''}> Done</label><small>Access: ${esc(v.access)}${v.keycode?' ('+esc(v.keycode)+')':''}</small>
-      ${v.food?`<small>Food: ${esc(v.food)}</small>`:''}${v.meds?`<small>Medication: ${esc(v.meds)}</small>`:''}${v.notes?`<small>Notes: ${esc(v.notes)}</small>`:''}</div>`).join('')
+      ${v.food?`<small>Food: ${esc(v.food)}</small>`:''}${v.meds?`<small>Medication: ${esc(v.meds)}</small>`:''}${v.vet?`<small>Vet: ${esc(v.vet)}</small>`:''}${v.notes?`<small>Notes: ${esc(v.notes)}</small>`:''}</div>`).join('')
       : '<p class="empty">No visits yet. Add the first one for this day.</p>'}
     <div class="actions"><button class="btn" id="x">Close</button><button class="btn primary" id="addHere" ${lk?'disabled':''}>Add visit on this day</button></div>`);
   $('#x').onclick = close;
@@ -324,6 +324,7 @@ function openAdd(k, ed){
     <div><label for="f-until">Repeat until</label><input type="date" id="f-until"></div></div>`}
     <label for="f-food">Food preferences</label><textarea id="f-food" placeholder="e.g. half a pouch of chicken, wet food only"></textarea>
     <label for="f-meds">Medication</label><input type="text" id="f-meds" placeholder="e.g. one tablet in food, morning only">
+    <label for="f-vet">Vet (name and phone)</label><input type="text" id="f-vet" placeholder="e.g. Riverside Vets, 01234 567890">
     <label for="f-notes">General instructions</label><textarea id="f-notes" placeholder="e.g. Put bin out, water plants"></textarea>
     <label for="f-acc">Access method</label><select id="f-acc">${ACCESS.map(a=>`<option>${a}</option>`).join('')}</select>
     <div id="kcWrap" hidden><label for="f-kc">Key safe / lockbox code</label><input type="text" id="f-kc"></div>
@@ -350,7 +351,7 @@ function openAdd(k, ed){
   const fill = (v, withDate) => {
     const set = (id, val) => { $('#'+id).value = val ?? ''; };
     set('f-name',v.name); set('f-hn',v.hname); set('f-he',v.hemail); set('f-addr',v.address); set('f-pc',v.postcode);
-    set('f-time',v.time || '08:00'); set('f-food',v.food); set('f-meds',v.meds); set('f-notes',v.notes);
+    set('f-time',v.time || '08:00'); set('f-food',v.food); set('f-meds',v.meds); set('f-vet',v.vet); set('f-notes',v.notes);
     if(withDate) set('f-date',v.date);
     f.querySelector(`[name=type][value=${v.type || 'Dog'}]`).checked = true;
     f.querySelector(`[name=slot][value=${v.slot || 'Morning'}]`).checked = true;
@@ -369,7 +370,7 @@ function openAdd(k, ed){
     if(isLocked(date)){ $('#fm').textContent = 'That week is locked. Unlock it to add visits.'; return; }
     const base = {
       price: Math.round(price*100)/100,
-      hname: $('#f-hn').value.trim(), hemail: $('#f-he').value.trim().toLowerCase(), name: $('#f-name').value.trim(), type: f.type.value, address: $('#f-addr').value.trim(),
+      vet: $('#f-vet').value.trim(), hname: $('#f-hn').value.trim(), hemail: $('#f-he').value.trim().toLowerCase(), name: $('#f-name').value.trim(), type: f.type.value, address: $('#f-addr').value.trim(),
       postcode: $('#f-pc').value.trim().toUpperCase(), slot: f.slot.value, time: $('#f-time').value,
       food: $('#f-food').value.trim(), meds: $('#f-meds').value.trim(), notes: $('#f-notes').value.trim(),
       access: $('#f-acc').value, keycode: $('#f-acc').value.startsWith('Key safe') ? $('#f-kc').value.trim() : ''
@@ -403,9 +404,7 @@ function summaryText(mk){
   vs.forEach(v => {
     if(v.date !== cur){ cur = v.date; L.push(fmtDay(parse(v.date)).toUpperCase()); }
     L.push(`  ${v.time} ${v.name} (${v.type}), ${money(visitPrice(v))}`,
-      `    Address: ${v.address}, ${v.postcode}`,
-      `    Access: ${v.access}${v.keycode ? ' (code: ' + v.keycode + ')' : ''}`);
-    if(v.food) L.push(`    Food: ${v.food}`);
+      `    Address: ${v.address}, ${v.postcode}`);
     if(v.meds) L.push(`    Medication: ${v.meds}`);
     if(v.notes) L.push(`    Instructions: ${v.notes}`);
     L.push('');
@@ -421,7 +420,7 @@ function openRun(k){
     ${vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} (${v.type})</span><span>${money(visitPrice(v))}</span></div>
       <small>${esc(v.address)}, ${esc(v.postcode)}${v.hname ? ' · ' + esc(v.hname) : ''}</small>
       <small>Access: ${esc(v.access)}${v.keycode ? ' (code: ' + esc(v.keycode) + ')' : ''}</small>
-      ${v.food ? `<small>Food: ${esc(v.food)}</small>` : ''}${v.meds ? `<small>Medication: ${esc(v.meds)}</small>` : ''}${v.notes ? `<small>Notes: ${esc(v.notes)}</small>` : ''}
+      ${v.food ? `<small>Food: ${esc(v.food)}</small>` : ''}${v.meds ? `<small>Medication: ${esc(v.meds)}</small>` : ''}${v.vet ? `<small>Vet: ${esc(v.vet)}</small>` : ''}${v.notes ? `<small>Notes: ${esc(v.notes)}</small>` : ''}
       <label style="margin:4px 0 0;font-weight:500"><input type="checkbox" data-done="${v.id}" ${v.done ? 'checked' : ''}> Done</label></div>`).join('') || '<p class="empty">No visits on this day.</p>'}
     <div class="actions"><button class="btn" id="x">Close</button><button class="btn primary" id="pr">Print</button></div>`);
   $('#x').onclick = close;
