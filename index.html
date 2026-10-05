@@ -101,6 +101,7 @@ header.top .wrap{padding:12px 14px}
 .month h3{font-size:19px}
 .weeks{margin-top:20px}
 @media(max-width:480px){.wrap{padding-left:10px;padding-right:10px}.logo{font-size:17px}.session{gap:6px}.btn.ghost-w{padding:4px 8px;font-size:13px}.bar h2{font-size:20px}.day{min-height:66px}}
+.banner.warn{background:#fdecea;border-color:#f3b7ae}
 @media(prefers-reduced-motion:no-preference){dialog[open]{animation:pop .15s ease-out}@keyframes pop{from{transform:scale(.97);opacity:0}}}
 </style>
 </head>
@@ -117,6 +118,7 @@ header.top .wrap{padding:12px 14px}
    Leave them empty to run in demo mode, where accounts are stored on this device only. */
 const SUPABASE_URL = 'https://xdwijvaggexosqkyexij.supabase.co', SUPABASE_ANON_KEY = 'sb_publishable_-FgwoVWcV2LhLzmbct5JTA_C2lUFxqU';
 const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const REF_PARAM = (new URLSearchParams(location.search).get('ref') || '').toUpperCase().slice(0, 20);
 const WEEKDAY_PRICE = 12, WEEKEND_PRICE = 15;
 const SLOTS = {Morning:'08:00', Afternoon:'13:00', Evening:'18:00'};
 const ACCESS = ['Client provided key','Key safe / Lockbox code','Owner will be home'];
@@ -138,14 +140,22 @@ const DEFAULT_SERVICE = 'PETS BEHAVING';
 const TAGLINE = 'We know who is looking after our pets';
 let savedSvc = localStorage.getItem('petrounds:service');
 if(savedSvc === 'Pets, Paws and More'){ savedSvc = null; localStorage.removeItem('petrounds:service'); }
-let state = { user: sb ? null : localStorage.getItem('petrounds:session'), uid: null, cloudReady: false, loadError: false, sync: '', syncErr: false, profile: null, authView: 'login', pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
+let state = { user: sb ? null : localStorage.getItem('petrounds:session'), uid: null, cloudReady: false, loadError: false, sync: '', syncErr: false, profile: null, authView: REF_PARAM ? 'register' : 'login', ent: null, share: null, refs: [], pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
 
 function load(){
   if(!state.user || sb) return;
   try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; } } catch(e){}
 }
+function canWrite(){ return !sb || !state.ent || state.ent.has_access; }
+function blocked(){
+  show(`<h2>Your access has ended</h2><p class="empty">You can still log in and view your visits. Adding or changing visits needs an active trial or subscription.</p><div class="actions"><button class="btn primary" id="x">OK</button></div>`);
+  $('#x').onclick = close;
+}
 function save(){
-  if(sb){ queueSync(); return; }
+  if(sb){
+    if(!canWrite()){ blocked(); loadCloud().then(() => render()).catch(() => {}); return; }
+    queueSync(); return;
+  }
   try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay})); } catch(e){}
 }
 if(state.user){ try { state.profile = JSON.parse(localStorage.getItem('petrounds:profile:' + state.user)); } catch(e){} }
@@ -211,6 +221,13 @@ async function loadCloud(){
   state.invoices = (st.data && st.data.invoices) || {};
   state.pay = (st.data && st.data.pay) || '';
   cloudIds = new Set(state.visits.map(x => x.id));
+  try {
+    const [en, sh, rf] = await Promise.all([sb.rpc('get_my_entitlement'), sb.rpc('get_my_share_info'), sb.from('referrals').select('status')]);
+    const ed = en.error ? null : (Array.isArray(en.data) ? en.data[0] : en.data);
+    state.ent = ed || null;
+    state.share = (!sh.error && Array.isArray(sh.data) && sh.data[0]) || null;
+    state.refs = rf.error ? [] : (rf.data || []);
+  } catch(e){ state.ent = null; state.share = null; state.refs = []; }
 }
 function offerImport(){
   const raw = localStorage.getItem('petrounds:data:' + state.user);
@@ -251,7 +268,7 @@ function renderAuth(){
   $('#app').innerHTML = `<form class="login" id="af"><h1>${esc(DEFAULT_SERVICE)}</h1><p>${TAGLINE}</p>
     <div class="choices"><label><input type="radio" name="av" value="login" ${reg ? '' : 'checked'}><span>Log in</span></label><label><input type="radio" name="av" value="register" ${reg ? 'checked' : ''}><span>Register</span></label></div>
     ${reg ? `<div class="row"><div><label for="fn">First name</label><input type="text" id="fn" required autocomplete="given-name"></div><div><label for="ln">Last name</label><input type="text" id="ln" required autocomplete="family-name"></div></div>
-    <label for="bz">Business name</label><input type="text" id="bz" required maxlength="60" autocomplete="organization">` : ''}
+    <label for="bz">Business name</label><input type="text" id="bz" required maxlength="60" autocomplete="organization">${sb ? `<label for="rc">Referral code (optional)</label><input type="text" id="rc" maxlength="20" autocapitalize="characters" value="${esc(REF_PARAM)}">` : ''}` : ''}
     <label for="em">Email address</label><input type="email" id="em" required autocomplete="email" placeholder="you@example.com">
     <div class="msg" id="am"></div>
     <button class="btn primary" style="width:100%;margin-top:6px">${reg ? 'Create account' : 'Email me a sign-in link'}</button>
@@ -261,13 +278,13 @@ function renderAuth(){
     e.preventDefault();
     const email = $('#em').value.trim().toLowerCase(), msg = $('#am');
     if(!/^\S+@\S+\.\S+$/.test(email)){ msg.textContent = 'Enter a valid email address, like you@example.com.'; return; }
-    const profile = reg ? {first:$('#fn').value.trim(), last:$('#ln').value.trim(), business:$('#bz').value.trim()} : null;
+    const profile = reg ? {first:$('#fn').value.trim(), last:$('#ln').value.trim(), business:$('#bz').value.trim(), ref:$('#rc') ? $('#rc').value.trim().toUpperCase() : ''} : null;
     if(reg && !(profile.first && profile.last && profile.business)){ msg.textContent = 'Fill in your first name, last name and business name.'; return; }
     const noAccount = 'No account found for that email. Choose Register to create one.';
     if(sb){
       msg.textContent = 'Sending…';
       const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: reg, emailRedirectTo: location.origin + location.pathname,
-        data: reg ? {first_name:profile.first, last_name:profile.last, business:profile.business} : undefined } });
+        data: reg ? {first_name:profile.first, last_name:profile.last, business:profile.business, referral_code:profile.ref || undefined} : undefined } });
       if(error){ msg.textContent = /signups not allowed/i.test(error.message) ? noAccount : error.message; return; }
       state.pendingEmail = email; state.authView = 'sent'; render();
     } else {
@@ -279,6 +296,34 @@ function renderAuth(){
       localStorage.setItem('petrounds:session', email); load(); render();
     }
   };
+}
+
+function statusHtml(){
+  const e = sb && state.ent; if(!e) return '';
+  if(!e.has_access) return `<div class="banner warn"><span>Your access has ended. You can still view your visits, but adding or changing them needs an active trial or subscription.</span></div>`;
+  const d = e.days_remaining, end = fmtLong(new Date(e.subscription_end));
+  const t = e.access_reason === 'free_trial' ? `Free trial: ${d} day${d === 1 ? '' : 's'} left (ends ${end})`
+    : e.access_reason === 'referral_reward' ? `Free referral months: access until ${end}`
+    : `${e.access_type === 'yearly' ? 'Yearly' : 'Monthly'} plan · ${e.auto_renew ? 'renews' : 'ends'} ${end}`;
+  return `<p class="hint">${esc(t)}</p>`;
+}
+function inviteHtml(){
+  if(!sb || !state.share) return '';
+  const e = state.ent || {}, refs = state.refs || [], paying = refs.filter(r => r.status !== 'pending').length;
+  return `<section class="weeks"><h3>Invite friends</h3>
+    <p class="sub">When someone you invite becomes a paying customer you earn a free month, up to 2 free months in total.</p>
+    <div class="wk"><div class="info"><b style="letter-spacing:.08em">${esc(state.share.referral_code)}</b>
+    <small>${refs.length} invited · ${paying} paying · ${e.referral_months_earned || 0} free month${e.referral_months_earned === 1 ? '' : 's'} earned</small></div>
+    <button class="btn primary" id="share">Share my referral code</button></div></section>`;
+}
+async function shareCode(){
+  if(!state.share) return;
+  const link = location.origin + location.pathname + '?ref=' + encodeURIComponent(state.share.referral_code);
+  const text = state.share.message + ' ' + link;
+  try {
+    if(navigator.share){ await navigator.share({title: state.service, text}); }
+    else { await navigator.clipboard.writeText(text); const b = $('#share'); if(b) b.textContent = 'Copied to clipboard'; }
+  } catch(e){}
 }
 
 function render(){
@@ -303,9 +348,11 @@ function render(){
     <p class="hint">Standard rate is ${money(WEEKDAY_PRICE)} on weekdays and ${money(WEEKEND_PRICE)} at weekends, and you can set your own price on each visit. Tap a day to see or add visits.</p>
     <div class="tools"><button class="btn" id="runsheet">Run sheet</button><button class="btn" id="earn">Earnings</button><button class="btn" id="bk">Backup</button><button class="btn" id="rs">Restore</button><input type="file" id="rf" accept="application/json" hidden></div>
     <p class="hint" id="sync" style="text-align:right;margin:0${state.syncErr ? ';color:var(--warn)' : ''}">${sb ? esc(state.sync) : ''}</p>
+    ${statusHtml()}
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
     ${months.map(monthHtml).join('')}
     <section class="weeks" id="weeks"></section>
+    ${inviteHtml()}
   </main>`;
   $('#logout').onclick = async () => {
     if(sb && state.sync === 'Saving…'){ clearTimeout(syncTimer); await syncNow(); }
@@ -318,6 +365,7 @@ function render(){
   $('#add').onclick = () => openAdd(todayKey);
   $('#runsheet').onclick = () => openRun(todayKey);
   $('#earn').onclick = openEarn;
+  if($('#share')) $('#share').onclick = shareCode;
   $('#bk').onclick = () => {
     const b = new Blob([JSON.stringify({service:state.service, visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay}, null, 1)], {type:'application/json'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `pets-behaving-backup-${todayKey}.json`; a.click();
@@ -370,6 +418,7 @@ function renderWeeks(months){
   $('#weeks').innerHTML = html;
   document.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => {
     const mk = b.dataset.lock;
+    if(!canWrite()) return blocked();
     if(state.locked[mk]) delete state.locked[mk]; else state.locked[mk] = true;
     save(); render();
   });
@@ -382,7 +431,7 @@ const dlg = $('#dlg');
 const show = html => { $('#dlgBody').innerHTML = html; if(!dlg.open) dlg.showModal(); };
 const close = () => dlg.close();
 
-function toggleDone(id){ state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
+function toggleDone(id){ if(!canWrite()) return blocked(); state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
 
 function openDay(k){
   const vs = visitsOn(k), lk = isLocked(k), d = parse(k);
@@ -405,6 +454,7 @@ function openDay(k){
 }
 
 function openAdd(k, ed){
+  if(!canWrite()) return blocked();
   const pets = [...new Map(state.visits.map(v => [(v.name+'|'+v.hemail).toLowerCase(), v])).values()];
   show(`<h2>${ed && ed.id ? 'Edit visit' : 'Add new visit'}</h2><form id="vf">
     ${pets.length && !ed ? `<label for="f-pet">Use a saved pet</label><select id="f-pet"><option value="">New pet</option>${pets.map((v,i) => `<option value="${i}">${esc(v.name)} (${esc(v.hname || v.hemail)})</option>`).join('')}</select>` : ''}
