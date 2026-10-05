@@ -115,7 +115,7 @@ header.top .wrap{padding:12px 14px}
 'use strict';
 /* Paste these two values from Supabase: Project Settings > API (Project URL and anon public key).
    Leave them empty to run in demo mode, where accounts are stored on this device only. */
-const SUPABASE_URL = '', SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://xdwijvaggexosqkyexij.supabase.co', SUPABASE_ANON_KEY = 'sb_publishable_-FgwoVWcV2LhLzmbct5JTA_C2lUFxq';
 const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const WEEKDAY_PRICE = 12, WEEKEND_PRICE = 15;
 const SLOTS = {Morning:'08:00', Afternoon:'13:00', Evening:'18:00'};
@@ -123,6 +123,7 @@ const ACCESS = ['Client provided key','Key safe / Lockbox code','Owner will be h
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'v' + Date.now() + Math.random().toString(36).slice(2,8);
 const pad = n => String(n).padStart(2,'0');
 const key = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const parse = k => { const [y,m,d] = k.split('-').map(Number); return new Date(y,m-1,d); };
@@ -137,13 +138,14 @@ const DEFAULT_SERVICE = 'PETS BEHAVING';
 const TAGLINE = 'We know who is looking after our pets';
 let savedSvc = localStorage.getItem('petrounds:service');
 if(savedSvc === 'Pets, Paws and More'){ savedSvc = null; localStorage.removeItem('petrounds:service'); }
-let state = { user: sb ? null : localStorage.getItem('petrounds:session'), profile: null, authView: 'login', pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
+let state = { user: sb ? null : localStorage.getItem('petrounds:session'), uid: null, cloudReady: false, loadError: false, sync: '', syncErr: false, profile: null, authView: 'login', pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
 
 function load(){
-  if(!state.user) return;
+  if(!state.user || sb) return;
   try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; } } catch(e){}
 }
 function save(){
+  if(sb){ queueSync(); return; }
   try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay})); } catch(e){}
 }
 if(state.user){ try { state.profile = JSON.parse(localStorage.getItem('petrounds:profile:' + state.user)); } catch(e){} }
@@ -182,17 +184,62 @@ function dueWeeks(){
 }
 
 /* ---------- rendering ---------- */
-function applySession(sess){
-  state.loading = false;
+const COLS = ['id','date','time','slot','name','type','address','postcode','hname','hemail','price','food','meds','vet','notes','access','keycode','done'];
+const toRow = v => { const r = {}; COLS.forEach(c => { r[c] = v[c] === undefined ? (c === 'done' ? false : null) : v[c]; }); return r; };
+let syncTimer, cloudIds = new Set();
+function setSync(t, err){ state.sync = t; state.syncErr = !!err; const el = $('#sync'); if(el){ el.textContent = t; el.style.color = err ? 'var(--warn)' : ''; } }
+function queueSync(){ clearTimeout(syncTimer); setSync('Saving…'); syncTimer = setTimeout(syncNow, 500); }
+async function syncNow(){
+  try {
+    const rows = state.visits.map(toRow);
+    if(rows.length){ const r = await sb.from('visits').upsert(rows); if(r.error) throw r.error; }
+    const gone = [...cloudIds].filter(id => !state.visits.some(v => v.id === id));
+    if(gone.length){ const r = await sb.from('visits').delete().in('id', gone); if(r.error) throw r.error; }
+    cloudIds = new Set(state.visits.map(v => v.id));
+    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:state.pay, updated_at:new Date().toISOString()});
+    if(r2.error) throw r2.error;
+    if(state.clearLocal){ localStorage.removeItem('petrounds:data:' + state.user); state.clearLocal = false; }
+    setSync('Saved');
+  } catch(e){ setSync('Not saved. Check your connection.', true); }
+}
+async function loadCloud(){
+  const [v, st] = await Promise.all([sb.from('visits').select('*').order('date').limit(5000), sb.from('settings').select('*').maybeSingle()]);
+  if(v.error) throw v.error;
+  if(st.error) throw st.error;
+  state.visits = v.data.map(r => ({...r, price: r.price == null ? undefined : Number(r.price)}));
+  state.locked = (st.data && st.data.locked) || {};
+  state.invoices = (st.data && st.data.invoices) || {};
+  state.pay = (st.data && st.data.pay) || '';
+  cloudIds = new Set(state.visits.map(x => x.id));
+}
+function offerImport(){
+  const raw = localStorage.getItem('petrounds:data:' + state.user);
+  if(state.visits.length || !raw) return;
+  try {
+    const l = JSON.parse(raw);
+    if((l.visits || []).length && confirm(`Upload the ${l.visits.length} visits saved on this device to your account?`)){
+      state.visits = l.visits.map(v => ({...v, id: uid()}));
+      state.locked = l.locked || {}; state.invoices = l.invoices || {}; state.pay = l.pay || '';
+      state.clearLocal = true; save();
+    }
+  } catch(e){}
+}
+async function applySession(sess){
   if(sess && sess.user){
+    if(state.uid === sess.user.id && state.cloudReady) return;
     const m = sess.user.user_metadata || {};
-    state.user = (sess.user.email || '').toLowerCase();
+    state.uid = sess.user.id; state.user = (sess.user.email || '').toLowerCase();
     state.profile = {first:m.first_name || '', last:m.last_name || '', business:m.business || ''};
     state.service = state.profile.business || DEFAULT_SERVICE;
-    load();
-  } else { state.user = null; state.profile = null; }
-  render();
+    state.loading = true; render();
+    try { await loadCloud(); state.cloudReady = true; state.loadError = false; offerImport(); }
+    catch(e){ state.loadError = true; }
+    state.loading = false; render();
+  } else {
+    state.loading = false; state.user = null; state.profile = null; state.uid = null; state.cloudReady = false; render();
+  }
 }
+window.addEventListener('beforeunload', e => { if(sb && state.sync === 'Saving…'){ e.preventDefault(); e.returnValue = ''; } });
 
 function renderAuth(){
   if(state.authView === 'sent'){
@@ -237,6 +284,11 @@ function renderAuth(){
 function render(){
   const app = $('#app');
   if(state.loading){ app.innerHTML = '<p class="empty" style="text-align:center;margin-top:90px">Loading…</p>'; return; }
+  if(state.loadError){
+    app.innerHTML = `<div class="login"><h1>Couldn't load your data</h1><p>Check your connection and try again.</p><button class="btn primary" id="retry" style="width:100%">Try again</button></div>`;
+    $('#retry').onclick = () => { state.loadError = false; state.cloudReady = false; sb.auth.getSession().then(({data}) => applySession(data.session)); };
+    return;
+  }
   if(!state.user){ renderAuth(); return; }
   const now = new Date(), first = new Date(now.getFullYear(), now.getMonth()+state.offset, 1);
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
@@ -250,11 +302,13 @@ function render(){
       <button class="btn primary" id="add">Add visit</button></div></div>
     <p class="hint">Standard rate is ${money(WEEKDAY_PRICE)} on weekdays and ${money(WEEKEND_PRICE)} at weekends, and you can set your own price on each visit. Tap a day to see or add visits.</p>
     <div class="tools"><button class="btn" id="runsheet">Run sheet</button><button class="btn" id="earn">Earnings</button><button class="btn" id="bk">Backup</button><button class="btn" id="rs">Restore</button><input type="file" id="rf" accept="application/json" hidden></div>
+    <p class="hint" id="sync" style="text-align:right;margin:0${state.syncErr ? ';color:var(--warn)' : ''}">${sb ? esc(state.sync) : ''}</p>
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
     ${months.map(monthHtml).join('')}
     <section class="weeks" id="weeks"></section>
   </main>`;
   $('#logout').onclick = async () => {
+    if(sb && state.sync === 'Saving…'){ clearTimeout(syncTimer); await syncNow(); }
     if(sb) await sb.auth.signOut(); else localStorage.removeItem('petrounds:session');
     state = {user:null, profile:null, authView:'login', pendingEmail:'', loading:false, service:DEFAULT_SERVICE, visits:[], locked:{}, invoices:{}, pay:'', offset:0}; render();
   };
@@ -275,7 +329,7 @@ function render(){
     try {
       const d = JSON.parse(await file.text()); if(!Array.isArray(d.visits)) throw 0;
       if(!confirm('Replace all current data with this backup?')) return;
-      state.visits = d.visits; state.locked = d.locked||{}; state.invoices = d.invoices||{}; state.pay = d.pay||'';
+      state.visits = d.visits.map(v => ({...v, id: sb ? uid() : v.id})); state.locked = d.locked||{}; state.invoices = d.invoices||{}; state.pay = d.pay||'';
       if(d.service){ state.service = d.service; localStorage.setItem('petrounds:service', d.service); }
       save(); render();
     } catch(err){ alert('That file is not a backup from this app.'); }
@@ -437,7 +491,7 @@ function openAdd(k, ed){
         }
       }
       const open = dates.filter(x => !isLocked(x));
-      open.forEach((x,i) => state.visits.push({...base, date:x, id:'v' + Date.now() + i + Math.random().toString(36).slice(2,5), price: (rp && !priceEdited) ? undefined : base.price}));
+      open.forEach((x,i) => state.visits.push({...base, date:x, id:uid(), price: (rp && !priceEdited) ? undefined : base.price}));
       if(open.length < dates.length) alert((dates.length - open.length) + ' visit(s) in locked weeks were skipped.');
     }
     save(); close(); render();
