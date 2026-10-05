@@ -87,6 +87,19 @@ th,td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-
 th:first-child,td:first-child{text-align:left}
 .pip.done{box-shadow:0 0 0 2px #5fe08f}
 @media print{#app,header.top{display:none}dialog{position:static;box-shadow:none;width:100%;max-height:none}dialog::backdrop{display:none}.actions,#rd,label[for=rd]{display:none}}
+.logo{font-size:19px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header.top .wrap{padding:9px 14px}
+.session{flex:none}
+.bar{margin:14px 0 4px}
+.bar h2{font-size:22px}
+.nav .btn{padding:7px 12px}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0}
+.tools .btn{padding:7px 2px;font-size:13px;text-align:center}
+.hint{color:var(--mute);font-size:13px;margin:0 0 6px}
+.month{margin-top:16px}
+.month h3{font-size:19px}
+.weeks{margin-top:20px}
+@media(max-width:480px){.wrap{padding-left:10px;padding-right:10px}.logo{font-size:17px}.session{gap:6px}.session .em{max-width:64px}.btn.ghost-w{padding:4px 8px;font-size:13px}.bar h2{font-size:20px}.day{min-height:58px}}
 @media(prefers-reduced-motion:no-preference){dialog[open]{animation:pop .15s ease-out}@keyframes pop{from{transform:scale(.97);opacity:0}}}
 </style>
 </head>
@@ -187,11 +200,11 @@ function render(){
     <div class="session"><i class="dot" aria-hidden="true"></i><span class="em" title="${esc(state.user)}">${esc(state.user)}</span>
     <button class="btn ghost-w" id="logout">Log out</button></div></div></header>
   <main class="wrap">
-    <div class="bar"><h2>${MONTHS[months[0].getMonth()]} to ${MONTHS[months[2].getMonth()]} ${months[2].getFullYear()}</h2>
+    <div class="bar"><h2>${MONTHS[months[0].getMonth()].slice(0,3)} to ${MONTHS[months[2].getMonth()].slice(0,3)} ${months[2].getFullYear()}</h2>
       <div class="nav"><button class="btn" id="prev" aria-label="Earlier months">‹</button><button class="btn" id="today">Today</button><button class="btn" id="next" aria-label="Later months">›</button>
       <button class="btn primary" id="add">Add visit</button></div></div>
-    <p class="empty" style="margin-top:0">Each visit starts at ${money(WEEKDAY_PRICE)} on weekdays or ${money(WEEKEND_PRICE)} at weekends, and you can set your own price per visit. Tap a day to see or add visits.</p>
-    <div class="nav" style="flex-wrap:wrap"><button class="btn" id="runsheet">Run sheet</button><button class="btn" id="earn">Earnings</button><button class="btn" id="bk">Backup</button><button class="btn" id="rs">Restore</button><input type="file" id="rf" accept="application/json" hidden></div>
+    <p class="hint">Standard rate ${money(WEEKDAY_PRICE)} weekdays, ${money(WEEKEND_PRICE)} weekends. Tap a day for details.</p>
+    <div class="tools"><button class="btn" id="runsheet">Run sheet</button><button class="btn" id="earn">Earnings</button><button class="btn" id="bk">Backup</button><button class="btn" id="rs">Restore</button><input type="file" id="rf" accept="application/json" hidden></div>
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
     ${months.map(monthHtml).join('')}
     <section class="weeks" id="weeks"></section>
