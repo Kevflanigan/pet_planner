@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pet Rounds – visit planner for dog walkers and cat sitters</title>
+<title>PETS BEHAVING – We know who is looking after our pets</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -87,7 +87,8 @@ th,td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-
 th:first-child,td:first-child{text-align:left}
 .pip.done{box-shadow:0 0 0 2px #5fe08f}
 @media print{#app,header.top{display:none}dialog{position:static;box-shadow:none;width:100%;max-height:none}dialog::backdrop{display:none}.actions,#rd,label[for=rd]{display:none}}
-.logo{font-size:20px;flex:1;min-width:0;line-height:1.15}
+.logo{font-size:20px;flex:1;min-width:0;line-height:1.15;letter-spacing:.02em}
+.logo small{display:block;font:400 12px/1.3 Figtree,sans-serif;letter-spacing:0;opacity:.85;margin-top:2px}
 header.top .wrap{padding:12px 14px}
 .session{flex:none}
 .bar{margin:14px 0 4px}
@@ -108,9 +109,14 @@ header.top .wrap{padding:12px 14px}
 
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (() => {
 'use strict';
+/* Paste these two values from Supabase: Project Settings > API (Project URL and anon public key).
+   Leave them empty to run in demo mode, where accounts are stored on this device only. */
+const SUPABASE_URL = '', SUPABASE_ANON_KEY = '';
+const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const WEEKDAY_PRICE = 12, WEEKEND_PRICE = 15;
 const SLOTS = {Morning:'08:00', Afternoon:'13:00', Evening:'18:00'};
 const ACCESS = ['Client provided key','Key safe / Lockbox code','Owner will be home'];
@@ -127,8 +133,11 @@ const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); retu
 const fmtDay = d => d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
 const todayKey = key(new Date());
 
-const DEFAULT_SERVICE = 'Pets, Paws and More';
-let state = { user: localStorage.getItem('petrounds:session'), service: localStorage.getItem('petrounds:service') || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
+const DEFAULT_SERVICE = 'PETS BEHAVING';
+const TAGLINE = 'We know who is looking after our pets';
+let savedSvc = localStorage.getItem('petrounds:service');
+if(savedSvc === 'Pets, Paws and More'){ savedSvc = null; localStorage.removeItem('petrounds:service'); }
+let state = { user: sb ? null : localStorage.getItem('petrounds:session'), profile: null, authView: 'login', pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
 
 function load(){
   if(!state.user) return;
@@ -137,6 +146,7 @@ function load(){
 function save(){
   try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay})); } catch(e){}
 }
+if(state.user){ try { state.profile = JSON.parse(localStorage.getItem('petrounds:profile:' + state.user)); } catch(e){} }
 const visitsOn = k => state.visits.filter(v => v.date === k).sort((a,b) => a.time.localeCompare(b.time));
 const isLocked = k => !!state.locked[key(mondayOf(parse(k)))];
 const visitPrice = v => typeof v.price === 'number' ? v.price : priceFor(v.date);
@@ -158,7 +168,7 @@ const inv = (mk,e) => state.invoices[mk+'|'+e] || {};
 const invNo = (mk,e) => 'INV-' + mk.replace(/-/g,'') + '-' + String(Math.abs([...e].reduce((a,c) => (a*31 + c.charCodeAt(0))|0, 7)) % 1000).padStart(3,'0');
 function invoiceText(mk,h){
   const s = parse(mk), e = addDays(s,6), L = [];
-  L.push(`INVOICE ${invNo(mk,h.email)}`, state.service, `From: ${state.user}`, '', `To: ${h.name}${h.email ? ' <'+h.email+'>' : ''}`,
+  L.push(`INVOICE ${invNo(mk,h.email)}`, state.service, TAGLINE, `From: ${state.user}`, '', `To: ${h.name}${h.email ? ' <'+h.email+'>' : ''}`,
     `Issued: ${fmtLong(e)}`, `Due: ${fmtLong(addDays(e,7))}`, `Week: ${fmtDay(s)} to ${fmtDay(e)}`, '');
   h.visits.forEach(v => L.push(`${fmtDay(parse(v.date))} ${v.time}  ${v.name} (${v.type})  ${money(visitPrice(v))}`));
   L.push('', `TOTAL DUE: ${money(sumPrice(h.visits))}`);
@@ -172,32 +182,67 @@ function dueWeeks(){
 }
 
 /* ---------- rendering ---------- */
-function render(){
-  const app = $('#app');
-  if(!state.user){
-    app.innerHTML = `<form class="login" id="loginForm">
-      <h1>Pet Rounds</h1><p>Plan your dog walks and cat sitting visits, and see what each day earns.</p>
-      <label for="svc">Name of service</label><input type="text" id="svc" required maxlength="60" value="${esc(state.service)}" autocomplete="organization">
-      <label for="em">Email address</label><input type="email" id="em" required autocomplete="email" placeholder="you@example.com">
-      <div class="msg" id="loginMsg"></div>
-      <button class="btn primary" style="width:100%;margin-top:6px">Log in</button>
-      <p style="font-size:13px;margin-top:14px">Demo login: your visits are saved on this device only. No password needed.</p></form>`;
-    $('#loginForm').onsubmit = e => {
-      e.preventDefault();
-      const v = $('#em').value.trim().toLowerCase();
-      if(!/^\S+@\S+\.\S+$/.test(v)){ $('#loginMsg').textContent = 'Enter a valid email address, like you@example.com.'; return; }
-      const svc = $('#svc').value.trim();
-      if(!svc){ $('#loginMsg').textContent = 'Enter the name of your service, like Pets, Paws and More.'; return; }
-      state.user = v; state.service = svc;
-      localStorage.setItem('petrounds:session', v); localStorage.setItem('petrounds:service', svc); load(); render();
-    };
+function applySession(sess){
+  state.loading = false;
+  if(sess && sess.user){
+    const m = sess.user.user_metadata || {};
+    state.user = (sess.user.email || '').toLowerCase();
+    state.profile = {first:m.first_name || '', last:m.last_name || '', business:m.business || ''};
+    state.service = state.profile.business || DEFAULT_SERVICE;
+    load();
+  } else { state.user = null; state.profile = null; }
+  render();
+}
+
+function renderAuth(){
+  if(state.authView === 'sent'){
+    $('#app').innerHTML = `<div class="login"><h1>Check your email</h1><p>We sent a sign-in link to <b>${esc(state.pendingEmail)}</b>. Open it on this device to continue. No password needed.</p><button class="btn" id="back" style="width:100%">Use a different email</button></div>`;
+    $('#back').onclick = () => { state.authView = 'login'; render(); };
     return;
   }
+  const reg = state.authView === 'register';
+  $('#app').innerHTML = `<form class="login" id="af"><h1>${esc(DEFAULT_SERVICE)}</h1><p>${TAGLINE}</p>
+    <div class="choices"><label><input type="radio" name="av" value="login" ${reg ? '' : 'checked'}><span>Log in</span></label><label><input type="radio" name="av" value="register" ${reg ? 'checked' : ''}><span>Register</span></label></div>
+    ${reg ? `<div class="row"><div><label for="fn">First name</label><input type="text" id="fn" required autocomplete="given-name"></div><div><label for="ln">Last name</label><input type="text" id="ln" required autocomplete="family-name"></div></div>
+    <label for="bz">Business name</label><input type="text" id="bz" required maxlength="60" autocomplete="organization">` : ''}
+    <label for="em">Email address</label><input type="email" id="em" required autocomplete="email" placeholder="you@example.com">
+    <div class="msg" id="am"></div>
+    <button class="btn primary" style="width:100%;margin-top:6px">${reg ? 'Create account' : 'Email me a sign-in link'}</button>
+    <p style="font-size:13px;margin-top:14px">${sb ? 'No password needed. We email you a secure sign-in link each time.' : 'Demo mode: accounts and data stay on this device. Add your Supabase keys to switch on real accounts.'}</p></form>`;
+  document.querySelectorAll('[name=av]').forEach(r => r.onchange = () => { const em = $('#em').value; state.authView = r.value; renderAuth(); $('#em').value = em; });
+  $('#af').onsubmit = async e => {
+    e.preventDefault();
+    const email = $('#em').value.trim().toLowerCase(), msg = $('#am');
+    if(!/^\S+@\S+\.\S+$/.test(email)){ msg.textContent = 'Enter a valid email address, like you@example.com.'; return; }
+    const profile = reg ? {first:$('#fn').value.trim(), last:$('#ln').value.trim(), business:$('#bz').value.trim()} : null;
+    if(reg && !(profile.first && profile.last && profile.business)){ msg.textContent = 'Fill in your first name, last name and business name.'; return; }
+    const noAccount = 'No account found for that email. Choose Register to create one.';
+    if(sb){
+      msg.textContent = 'Sending…';
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: reg, emailRedirectTo: location.origin + location.pathname,
+        data: reg ? {first_name:profile.first, last_name:profile.last, business:profile.business} : undefined } });
+      if(error){ msg.textContent = /signups not allowed/i.test(error.message) ? noAccount : error.message; return; }
+      state.pendingEmail = email; state.authView = 'sent'; render();
+    } else {
+      const pk = 'petrounds:profile:' + email;
+      if(reg) localStorage.setItem(pk, JSON.stringify(profile));
+      const saved = localStorage.getItem(pk);
+      if(!saved){ msg.textContent = noAccount; return; }
+      state.user = email; state.profile = JSON.parse(saved); state.service = state.profile.business;
+      localStorage.setItem('petrounds:session', email); load(); render();
+    }
+  };
+}
+
+function render(){
+  const app = $('#app');
+  if(state.loading){ app.innerHTML = '<p class="empty" style="text-align:center;margin-top:90px">Loading…</p>'; return; }
+  if(!state.user){ renderAuth(); return; }
   const now = new Date(), first = new Date(now.getFullYear(), now.getMonth()+state.offset, 1);
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
   app.innerHTML = `
-  <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
-    <div class="session"><i class="dot" aria-hidden="true"></i><span class="em" title="${esc(state.user)}">${esc(state.user)}</span>
+  <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}<small>${TAGLINE}</small></div>
+    <div class="session"><i class="dot" aria-hidden="true"></i><span class="em" title="${esc(state.user)}">${esc(state.profile && state.profile.first ? state.profile.first + ' ' + state.profile.last : state.user)}</span>
     <button class="btn ghost-w" id="logout">Log out</button></div></div></header>
   <main class="wrap">
     <div class="bar"><h2>${MONTHS[months[0].getMonth()]} to ${MONTHS[months[2].getMonth()]} ${months[2].getFullYear()}</h2>
@@ -209,7 +254,10 @@ function render(){
     ${months.map(monthHtml).join('')}
     <section class="weeks" id="weeks"></section>
   </main>`;
-  $('#logout').onclick = () => { localStorage.removeItem('petrounds:session'); state = {user:null,service:state.service,visits:[],locked:{},invoices:{},pay:'',offset:0}; render(); };
+  $('#logout').onclick = async () => {
+    if(sb) await sb.auth.signOut(); else localStorage.removeItem('petrounds:session');
+    state = {user:null, profile:null, authView:'login', pendingEmail:'', loading:false, service:DEFAULT_SERVICE, visits:[], locked:{}, invoices:{}, pay:'', offset:0}; render();
+  };
   $('#prev').onclick = () => { state.offset--; render(); };
   $('#next').onclick = () => { state.offset++; render(); };
   $('#today').onclick = () => { state.offset = 0; render(); };
@@ -218,7 +266,7 @@ function render(){
   $('#earn').onclick = openEarn;
   $('#bk').onclick = () => {
     const b = new Blob([JSON.stringify({service:state.service, visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay}, null, 1)], {type:'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `pet-rounds-backup-${todayKey}.json`; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `pets-behaving-backup-${todayKey}.json`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   $('#rs').onclick = () => $('#rf').click();
@@ -230,7 +278,7 @@ function render(){
       state.visits = d.visits; state.locked = d.locked||{}; state.invoices = d.invoices||{}; state.pay = d.pay||'';
       if(d.service){ state.service = d.service; localStorage.setItem('petrounds:service', d.service); }
       save(); render();
-    } catch(err){ alert('That file is not a Pet Rounds backup.'); }
+    } catch(err){ alert('That file is not a backup from this app.'); }
   };
   document.querySelectorAll('.day[data-k]').forEach(b => b.onclick = () => openDay(b.dataset.k));
   renderWeeks(months);
@@ -491,7 +539,10 @@ function openSummary(mk){
   };
 }
 
-load(); render();
+if(sb){
+  sb.auth.getSession().then(({data}) => applySession(data.session)).catch(() => applySession(null));
+  sb.auth.onAuthStateChange((ev, sess) => { if(ev === 'SIGNED_IN' || ev === 'SIGNED_OUT') applySession(sess); });
+} else { load(); render(); }
 })();
 </script>
 </body>
