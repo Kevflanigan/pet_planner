@@ -97,7 +97,7 @@ header.top .wrap{padding:12px 14px}
 .hint{color:var(--mute);font-size:14px;margin:0 0 8px}
 .month{margin-top:16px}
 .month h3{font-size:19px}
-.weeks{margin-top:20px}
+.weeks{margin-top:20px}.weeks#weeks{margin-top:24px;min-height:180px}.weeks#weeks h3{margin-top:0;font-size:22px}
 @media(max-width:480px){.wrap{padding-left:10px;padding-right:10px}.logo{font-size:14px}.session{gap:6px}.btn.ghost-w{padding:4px 8px;font-size:13px}.bar h2{font-size:20px}.day{min-height:66px}}
 @media(max-width:480px){.wk{grid-template-columns:minmax(0,1fr) auto;gap:8px}.wk .info{grid-column:1}.wk [data-send],.wk [data-inv]{grid-column:1}.wk [data-lock]{grid-column:2;grid-row:1 / span 3;align-self:center;justify-self:end}}
 .banner.warn{background:#fdecea;border-color:#f3b7ae}
@@ -364,7 +364,14 @@ function render(){
     ${statusHtml()}
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
     ${months.map(monthHtml).join('')}
-    <section class="weeks" id="weeks"></section>
+    <section class="weeks" id="weeks">
+<h3>Weekly Summary</h3>
+<p class="sub">Your next 4 weeks are shown below. Lock a week once it is final.</p>
+<div class="wk"><div class="info"><b>Loading week 1…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
+<div class="wk"><div class="info"><b>Loading week 2…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
+<div class="wk"><div class="info"><b>Loading week 3…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
+<div class="wk"><div class="info"><b>Loading week 4…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
+</section>
     ${inviteHtml()}
     <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
@@ -418,46 +425,29 @@ function monthHtml(m){
 }
 
 function renderWeeks(){
+  const el = $('#weeks');
+  if(!el) return;
   const todayMon = key(mondayOf(new Date()));
-  let html = `<h3>Weekly Summary</h3><p class="sub">Lock a week once it is final. Locked weeks can't be edited, and you can send the client list as a weekly summary.</p>`;
-
-  // Keep the original full weekly section/functionality, but display only four weeks.
-  // Each row retains: date range, visit/revenue summary, weekly summary action,
-  // invoice action where applicable, and the Lock/Unlock control on the far right.
-  for(let i = 0; i < 4; i++){
-    const d = addDays(parse(todayMon), i * 7);
-    const mk = key(d);
-    const end = addDays(d, 6);
-    const vs = weekVisits(mk);
-    const lk = !!state.locked[mk];
-
-    html += `
-      <div class="wk" data-week="${mk}">
-        <div class="info">
-          <b>${fmtDay(d)} to ${fmtDay(end)} ${lk ? '<span class="tag">Locked</span>' : ''}</b>
-          <small>${vs.length} visit${vs.length === 1 ? '' : 's'} · ${money(weekTotal(mk))}</small>
-        </div>
-        ${lk ? `<button class="btn" data-send="${mk}">Send Weekly Summary</button>
-                <button class="btn primary" data-inv="${mk}">Invoices</button>` : ''}
-        <button class="btn" data-lock="${mk}" aria-label="${lk ? 'Unlock' : 'Lock'} week ${fmtDay(d)}">
-          ${lk ? 'Unlock week' : 'Lock week'}
-        </button>
-      </div>`;
+  let html = `<h3>Weekly Summary</h3><p class="sub">Your next 4 weeks are shown below. Lock a week once it is final. Locked weeks can't be edited.</p>`;
+  for(let i=0;i<4;i++){
+    const d=addDays(parse(todayMon),i*7), mk=key(d), end=addDays(d,6);
+    const vs=weekVisits(mk), lk=!!state.locked[mk];
+    html += `<div class="wk" data-week="${mk}">
+      <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)} ${lk?'<span class="tag">Locked</span>':''}</b>
+      <small>${vs.length} visit${vs.length===1?'':'s'} · ${money(weekTotal(mk))}</small></div>
+      ${lk?`<button class="btn" data-send="${mk}">Send Weekly Summary</button><button class="btn primary" data-inv="${mk}">Invoices</button>`:''}
+      <button class="btn" data-lock="${mk}">${lk?'Unlock week':'Lock week'}</button>
+    </div>`;
   }
-
-  $('#weeks').innerHTML = html;
-
-  document.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => {
-    const mk = b.dataset.lock;
+  el.innerHTML=html;
+  el.querySelectorAll('[data-lock]').forEach(b=>b.onclick=()=>{
+    const mk=b.dataset.lock;
     if(!canWrite()) return blocked();
-    if(state.locked[mk]) delete state.locked[mk];
-    else state.locked[mk] = true;
-    save();
-    render();
+    if(state.locked[mk]) delete state.locked[mk]; else state.locked[mk]=true;
+    save(); render();
   });
-
-  document.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
-  document.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
+  el.querySelectorAll('[data-inv]').forEach(b=>b.onclick=()=>openInvoices(b.dataset.inv));
+  el.querySelectorAll('[data-send]').forEach(b=>b.onclick=()=>openSummary(b.dataset.send));
 }
 
 /* ---------- dialogs ---------- */
