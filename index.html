@@ -55,7 +55,7 @@ textarea{min-height:60px;resize:vertical}
 .blank{visibility:hidden}
 .weeks{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:30px}
 .weeks p.sub{color:var(--mute);margin:4px 0 12px;font-size:14px}
-.wk{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid var(--line)}
+.wk{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid var(--line)}.wk>[data-lock]{grid-column:4;justify-self:end}
 .wk .info{min-width:0}
 .wk .info b{display:block}
 .wk .info small{color:var(--mute)}
@@ -99,7 +99,7 @@ header.top .wrap{padding:12px 14px}
 .month h3{font-size:19px}
 .weeks{margin-top:20px}
 @media(max-width:480px){.wrap{padding-left:10px;padding-right:10px}.logo{font-size:14px}.session{gap:6px}.btn.ghost-w{padding:4px 8px;font-size:13px}.bar h2{font-size:20px}.day{min-height:66px}}
-@media(max-width:480px){.wk{grid-template-columns:minmax(0,1fr) auto;gap:8px}.wk .info{grid-column:1}.wk [data-send],.wk [data-inv]{grid-column:1}.wk [data-lock]{grid-column:2;grid-row:1 / span 3;align-self:center}}
+@media(max-width:480px){.wk{grid-template-columns:minmax(0,1fr) auto;gap:8px}.wk .info{grid-column:1}.wk [data-send],.wk [data-inv]{grid-column:1}.wk [data-lock]{grid-column:2;grid-row:1 / span 3;align-self:center;justify-self:end}}
 .banner.warn{background:#fdecea;border-color:#f3b7ae}
 .logo-img{display:block;margin:0 auto 14px;width:min(280px,78%);height:auto}
 body.authpage{background:var(--cream)}
@@ -410,21 +410,42 @@ function monthHtml(m){
 function renderWeeks(){
   const todayMon = key(mondayOf(new Date()));
   let html = `<h3>Weekly Summary</h3><p class="sub">Lock a week once it is final. Locked weeks can't be edited, and you can send the client list as a weekly summary.</p>`;
+
+  // Keep the original full weekly section/functionality, but display only four weeks.
+  // Each row retains: date range, visit/revenue summary, weekly summary action,
+  // invoice action where applicable, and the Lock/Unlock control on the far right.
   for(let i = 0; i < 4; i++){
-    const d = addDays(parse(todayMon), i * 7), mk = key(d);
-    const vs = weekVisits(mk), lk = !!state.locked[mk];
-    html += `<div class="wk"><div class="info"><b>${fmtDay(d)} to ${fmtDay(addDays(d,6))} ${lk?'<span class="tag">Locked</span>':''}</b>
-      <small>${vs.length} visit${vs.length===1?'':'s'} · ${money(weekTotal(mk))}</small></div>
-      ${lk?`<button class="btn" data-send="${mk}">Send Weekly Summary Email</button><button class="btn primary" data-inv="${mk}">Invoices</button>`:''}
-      <button class="btn" data-lock="${mk}">${lk?'Unlock week':'Lock week'}</button></div>`;
+    const d = addDays(parse(todayMon), i * 7);
+    const mk = key(d);
+    const end = addDays(d, 6);
+    const vs = weekVisits(mk);
+    const lk = !!state.locked[mk];
+
+    html += `
+      <div class="wk" data-week="${mk}">
+        <div class="info">
+          <b>${fmtDay(d)} to ${fmtDay(end)} ${lk ? '<span class="tag">Locked</span>' : ''}</b>
+          <small>${vs.length} visit${vs.length === 1 ? '' : 's'} · ${money(weekTotal(mk))}</small>
+        </div>
+        ${lk ? `<button class="btn" data-send="${mk}">Send Weekly Summary</button>
+                <button class="btn primary" data-inv="${mk}">Invoices</button>` : ''}
+        <button class="btn" data-lock="${mk}" aria-label="${lk ? 'Unlock' : 'Lock'} week ${fmtDay(d)}">
+          ${lk ? 'Unlock week' : 'Lock week'}
+        </button>
+      </div>`;
   }
+
   $('#weeks').innerHTML = html;
+
   document.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => {
     const mk = b.dataset.lock;
     if(!canWrite()) return blocked();
-    if(state.locked[mk]) delete state.locked[mk]; else state.locked[mk] = true;
-    save(); render();
+    if(state.locked[mk]) delete state.locked[mk];
+    else state.locked[mk] = true;
+    save();
+    render();
   });
+
   document.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
   document.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
 }
