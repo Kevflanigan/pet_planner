@@ -65,7 +65,9 @@ dialog::backdrop{background:#0a1a2099}
 .dlg{padding:20px}
 .dlg h2{font-size:24px;margin-bottom:8px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:480px){.row{grid-template-columns:1fr}.day{min-height:64px;padding:3px 4px}.day .earn{font-size:12px}.grid{gap:3px}}
+@media(max-width:480px){.row{grid-template-columns:1fr}.day{min-height:64px;padding:3px 4px}.day .earn{font-size:12px}.grid{gap:3px}
+.schedule-sticky{margin:0 -14px;padding:10px 14px 12px}.schedule-actions .btn{padding:9px 5px;font-size:14px}.view-switch button{font-size:12px;padding:9px 1px}.capacity{padding:12px}.capacity h2{font-size:20px}.capacity-row{grid-template-columns:78px minmax(55px,1fr) auto;gap:7px}.capacity-month{font-size:13px}.capacity-bar{height:20px}.capacity-metric{font-size:13px}.capacity-metric small{font-size:11px}}
+@media(min-width:700px){.capacity-row{grid-template-columns:150px minmax(160px,1fr) 120px}.schedule-sticky{padding:12px 0 14px}}
 .choices{display:flex;gap:8px;flex-wrap:wrap}
 .choices label{margin:0;font-weight:500;cursor:pointer}
 .choices input{position:absolute;opacity:0}
@@ -87,6 +89,27 @@ th,td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-
 th:first-child,td:first-child{text-align:left}
 .pip.done{box-shadow:0 0 0 2px #5fe08f}
 @media print{#app,header.top{display:none}dialog{position:static;box-shadow:none;width:100%;max-height:none}dialog::backdrop{display:none}.actions,#rd,label[for=rd]{display:none}}
+
+/* Schedule redesign */
+.schedule-sticky{position:sticky;top:0;z-index:50;background:var(--bg);padding:10px 0 12px;border-bottom:1px solid var(--line);box-shadow:0 4px 10px #0b2a450d}
+.schedule-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.schedule-actions .btn{min-height:48px;border-radius:28px;font-size:15px}
+.view-switch{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1.5px solid var(--brand-d);border-radius:28px;padding:4px;background:var(--cream);overflow:hidden}
+.view-switch button{border:0;border-right:1px solid var(--line);background:transparent;padding:9px 3px;font-weight:600;font-size:14px;white-space:nowrap}
+.view-switch button:last-child{border-right:0}
+.view-switch button.active{background:var(--brand-d);color:#fff;border-radius:22px}
+.capacity{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:18px 0 8px}
+.capacity h2{font-size:22px;margin-bottom:12px}
+.capacity-row{display:grid;grid-template-columns:minmax(86px,1fr) minmax(90px,2fr) auto;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.capacity-row:last-of-type{border-bottom:0}
+.capacity-month{font-weight:600;line-height:1.2}
+.capacity-bar{height:24px;background:#e8efeb;border-radius:5px;overflow:hidden;display:flex}
+.capacity-fill{height:100%;min-width:0;background:var(--brand)}
+.capacity-fill.medium{background:#e9b928}.capacity-fill.high{background:#c83c42}
+.capacity-metric{text-align:right;white-space:nowrap;font-weight:700}
+.capacity-metric small{display:block;font-weight:500;color:var(--mute)}
+.capacity-revenue{border-top:1px solid var(--line);padding-top:12px;margin-top:6px;font-size:14px}
+.view-content[hidden]{display:none!important}
 .logo{font-size:14px;flex:1;min-width:0;line-height:1.15;letter-spacing:.02em}
 .logo small{display:block;font:400 12px/1.3 Figtree,sans-serif;letter-spacing:0;opacity:.85;margin-top:2px}
 header.top .wrap{padding:12px 14px}
@@ -356,14 +379,26 @@ function render(){
     <div class="session"><i class="dot" aria-hidden="true"></i><span class="em" title="${esc(state.user)}">${esc(state.profile && state.profile.first ? state.profile.first + ' ' + state.profile.last : state.user)}</span>
     <button class="btn ghost-w" id="logout">Log out</button></div></div></header>
   <main class="wrap">
-    <div class="bar"><h2>${MONTHS[months[0].getMonth()]} to ${MONTHS[months[2].getMonth()]} ${months[2].getFullYear()}</h2>
-      <div class="nav">
-      <button class="btn primary" id="add">Add visit</button>
-      <button class="btn" id="earn">Earnings Summary</button></div></div>
-    <p class="hint" id="sync" style="text-align:right;margin:0${state.syncErr ? ';color:var(--warn)' : ''}">${sb ? esc(state.sync) : ''}</p>
+    <div class="schedule-sticky" aria-label="Schedule controls">
+      <div class="schedule-actions">
+        <button class="btn primary" id="add">✦ Add visit</button>
+        <button class="btn" id="scheduleOverview">Schedule Overview</button>
+      </div>
+      <div class="view-switch" role="group" aria-label="Schedule view">
+        <button type="button" data-view="month" class="active" aria-pressed="true">Month</button>
+        <button type="button" data-view="week" aria-pressed="false">Week</button>
+        <button type="button" data-view="agenda" aria-pressed="false">Agenda</button>
+        <button type="button" data-view="quarter" aria-pressed="false">3 Months</button>
+      </div>
+    </div>
+    <p class="hint" id="sync" style="text-align:right;margin:6px 0 0${state.syncErr ? ';color:var(--warn)' : ''}">${sb ? esc(state.sync) : ''}</p>
+    ${capacityHtml(months)}
+    <div id="scheduleContent" class="view-content">
     ${statusHtml()}
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
-    ${months.map(monthHtml).join('')}
+    <div id="monthContent">${months.map(monthHtml).join('')}</div>
+    <div id="alternateContent" hidden></div>
+    </div>
     <section class="weeks" id="weeks">
 <h3>Weekly Summary</h3>
 <p class="sub">Your next 4 weeks are shown below. Lock a week once it is final.</p>
@@ -390,7 +425,8 @@ function render(){
     render();
   };
   $('#add').onclick = () => openAdd(todayKey);
-  $('#earn').onclick = openEarn;
+  $('#scheduleOverview').onclick = () => { const target = $('#scheduleContent'); if(target) target.scrollIntoView({behavior:'smooth',block:'start'}); };
+  document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => setScheduleView(btn.dataset.view));
   if($('#share')) $('#share').onclick = shareCode;
   $('#contactBtn').onclick = openContact;
   $('#rf').onchange = async e => {
@@ -405,6 +441,36 @@ function render(){
   };
   document.querySelectorAll('.day[data-k]').forEach(b => b.onclick = () => openDay(b.dataset.k));
   renderWeeks();
+}
+
+function capacityHtml(months){
+  const rows = months.map(m => {
+    const y=m.getFullYear(), mo=m.getMonth(), days=new Date(y,mo+1,0).getDate();
+    const monthVisits=state.visits.filter(v => {const d=parse(v.date);return d.getFullYear()===y&&d.getMonth()===mo;});
+    const booked=new Set(monthVisits.map(v=>v.date)).size;
+    const pct=Math.min(100,Math.round(booked/days*100));
+    const level=pct>=80?'high':pct>=50?'medium':'';
+    return `<div class="capacity-row"><div class="capacity-month">${MONTHS[mo]} ${y}</div><div class="capacity-bar" role="img" aria-label="${pct}% capacity used"><div class="capacity-fill ${level}" style="width:${pct}%"></div></div><div class="capacity-metric">${booked}<small>${pct}%</small></div></div>`;
+  }).join('');
+  const total=state.visits.filter(v=>months.some(m=>{const d=parse(v.date);return d.getFullYear()===m.getFullYear()&&d.getMonth()===m.getMonth();}));
+  return `<section class="capacity" aria-labelledby="capacityTitle"><h2 id="capacityTitle">Quarterly Capacity Planner</h2>${rows}<div class="capacity-revenue">QUARTERLY REVENUE: <strong>${money(sumPrice(total))} booked</strong></div></section>`;
+}
+function setScheduleView(view){
+  document.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
+  const monthBox=$('#monthContent'), alt=$('#alternateContent'); if(!monthBox||!alt)return;
+  if(view==='month'||view==='quarter'){
+    monthBox.hidden=false; alt.hidden=true;
+    document.querySelectorAll('#monthContent .month').forEach((el,i)=>el.hidden=(view==='month'&&i>0));
+    return;
+  }
+  monthBox.hidden=true; alt.hidden=false;
+  if(view==='week'){
+    const start=mondayOf(new Date()); const dates=Array.from({length:7},(_,i)=>addDays(start,i));
+    alt.innerHTML=`<section class="month"><h3>This week</h3>${dates.map(d=>{const k=key(d),vs=visitsOn(k);return `<div class="visit"><div class="h"><span>${fmtDay(d)}</span><span>${money(sumPrice(vs))}</span></div>${vs.length?vs.map(v=>`<small>${esc(v.time||'')} · ${esc(v.name||'Visit')} · ${esc(v.hname||'Client')}</small>`).join(''):'<small>No visits scheduled</small>'}</div>`}).join('')}</section>`;
+  }else{
+    const upcoming=state.visits.filter(v=>v.date>=todayKey).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+    alt.innerHTML=`<section class="month"><h3>Upcoming visits</h3>${upcoming.length?upcoming.map(v=>`<div class="visit"><div class="h"><span>${fmtDay(parse(v.date))} · ${esc(v.time||'')}</span><span>${money(visitPrice(v))}</span></div><small>${esc(v.name||'Visit')} · ${esc(v.type||'Pet')} · ${esc(v.hname||'Client')}</small></div>`).join(''):'<p class="empty">No upcoming visits.</p>'}</section>`;
+  }
 }
 
 function monthHtml(m){
