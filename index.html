@@ -128,6 +128,43 @@ header.top .wrap{padding:12px 14px}
 body.authpage{background:var(--cream)}
 .authpage .login{background:transparent;border:0;margin-top:20px;padding-top:6px}
 @media(prefers-reduced-motion:no-preference){dialog[open]{animation:pop .15s ease-out}@keyframes pop{from{transform:scale(.97);opacity:0}}}
+
+/* ---- Pets Behaving design system overhaul ---- */
+:root{--bg:#F4F7F5;--ink:#1F2D3A;--mute:#5A6B78;--line:#DCE5E0;--brand:#006B3F;--brand-d:#0B2B4C;--brand-h:#00552F;--cat:#6B3FA0;--dog:#6B3FA0;--lock:#E3E8E5}
+body,h1,h2,h3,.logo,.day .earn{font-family:Figtree,system-ui,sans-serif}
+h1,h2,h3{font-weight:700}
+.btn{border-radius:999px}
+header.top{background:var(--brand-d)}
+header.top .wrap{padding:10px 14px}
+.logo{font-size:17px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0}
+.session{position:relative;flex:none}
+.avatar{width:38px;height:38px;border-radius:50%;border:2px solid #ffffff66;background:#fff;color:var(--brand-d);font-weight:700;font-size:14px;padding:0}
+.menu{position:absolute;right:0;top:46px;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:12px;min-width:220px;box-shadow:0 12px 30px #0b2b4c33;z-index:40}
+.menu[hidden]{display:none}
+.menu .who{margin-bottom:10px;line-height:1.3}
+.menu .who small{display:block;color:var(--mute);overflow-wrap:anywhere}
+.menu .btn{width:100%;border-color:var(--brand-d);color:var(--brand-d)}
+.view-switch{display:flex;gap:6px;border:0;padding:0;background:transparent;overflow:visible;border-radius:0}
+.view-switch button,.view-switch button:last-child{flex:1;border:1.5px solid var(--brand-d);border-radius:999px;background:#fff;color:var(--brand-d);font-weight:600;font-size:13px;padding:8px 2px;white-space:nowrap}
+.view-switch button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.day{background:#EDF1EE;border:0;border-radius:12px}
+.day.we{background:#EDF1EE}
+.day.today{box-shadow:inset 0 0 0 2px var(--brand)}
+.day.locked{background:#E1E7E3;border:0}
+.pip,.pip.Dog,.pip.Cat{background:#6B3FA0}
+.day .earn{font-weight:800;font-size:13px;color:var(--brand)}
+.capacity{padding:8px 10px;margin:8px 0 6px;border-radius:12px}
+.capacity h2{font-size:14px;margin:0 0 2px}
+.capacity-row{padding:5px 0;gap:8px;font-size:12px}
+.capacity-bar{height:7px;border-radius:99px}
+.capacity-metric{font-size:12px}
+.capacity-metric small{display:inline;margin-left:4px;font-size:11px}
+.capacity-revenue{padding-top:6px;margin-top:2px;font-size:12px}
+.wk-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn.locked{background:#E6EBE8;color:#7A8892;border-color:#D7DFDB;cursor:not-allowed}
+.skel{border-radius:12px;background:linear-gradient(90deg,#E4EAE6 25%,#F2F5F3 37%,#E4EAE6 63%);background-size:400% 100%;animation:shimmer 1.3s ease infinite}
+@keyframes shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+@media(prefers-reduced-motion:reduce){.skel{animation:none}}
 </style>
 </head>
 <body>
@@ -167,7 +204,7 @@ const DEFAULT_SERVICE = 'PETS BEHAVING';
 const TAGLINE = 'We know who is looking after our pets';
 let savedSvc = localStorage.getItem('petrounds:service');
 if(savedSvc === 'Pets, Paws and More'){ savedSvc = null; localStorage.removeItem('petrounds:service'); }
-let state = { user: sb ? null : (localStorage.getItem('petrounds:session') || 'demo@petsbehaving.local'), uid: null, cloudReady: false, loadError: false, sync: '', syncErr: false, profile: null, authView: REF_PARAM ? 'register' : 'login', ent: null, share: null, refs: [], pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
+let state = { user: sb ? null : (localStorage.getItem('petrounds:session') || (sessionStorage.getItem('petrounds:loggedout') ? null : 'demo@petsbehaving.local')), uid: null, cloudReady: false, loadError: false, sync: '', syncErr: false, profile: null, authView: REF_PARAM ? 'register' : 'login', ent: null, share: null, refs: [], pendingEmail: '', loading: !!sb, service: savedSvc || DEFAULT_SERVICE, visits: [], locked: {}, invoices: {}, pay: '', offset: 0 };
 
 function load(){
   if(!state.user || sb) return;
@@ -209,7 +246,7 @@ function invoiceText(mk,h){
   const s = parse(mk), e = addDays(s,6), L = [];
   L.push(`INVOICE ${invNo(mk,h.email)}`, state.service, `From: ${state.user}`, '', `To: ${h.name}${h.email ? ' <'+h.email+'>' : ''}`,
     `Issued: ${fmtLong(e)}`, `Due: ${fmtLong(addDays(e,7))}`, `Week: ${fmtDay(s)} to ${fmtDay(e)}`, '');
-  h.visits.forEach(v => L.push(`${fmtDay(parse(v.date))} ${v.time}  ${v.name} (${v.type})  ${money(visitPrice(v))}`));
+  h.visits.forEach(v => L.push(`${fmtDay(parse(v.date))} ${v.time}  ${v.name} · ${v.type}  ${money(visitPrice(v))}`));
   L.push('', `TOTAL DUE: ${money(sumPrice(h.visits))}`);
   if(state.pay) L.push('', 'How to pay:', state.pay);
   L.push('', 'Thank you!');
@@ -329,7 +366,7 @@ function renderAuth(){
       const saved = localStorage.getItem(pk);
       if(!saved){ msg.textContent = noAccount; return; }
       state.user = email; state.profile = JSON.parse(saved); state.service = state.profile.business;
-      localStorage.setItem('petrounds:session', email); load(); render();
+      localStorage.setItem('petrounds:session', email); sessionStorage.removeItem('petrounds:loggedout'); load(); render();
     }
   };
 }
@@ -365,7 +402,7 @@ async function shareCode(){
 function render(){
   const app = $('#app');
   document.body.classList.toggle('authpage', !state.user);
-  if(state.loading){ app.innerHTML = '<p class="empty" style="text-align:center;margin-top:90px">Loading…</p>'; return; }
+  if(state.loading && !state.user){ app.innerHTML = '<p class="empty" style="text-align:center;margin-top:90px">Loading…</p>'; return; }
   if(state.loadError){
     app.innerHTML = `<div class="login"><h1>Couldn't load your data</h1><p>Check your connection and try again.</p><button class="btn primary" id="retry" style="width:100%">Try again</button></div>`;
     $('#retry').onclick = () => { state.loadError = false; state.cloudReady = false; sb.auth.getSession().then(({data}) => applySession(data.session)); };
@@ -376,52 +413,40 @@ function render(){
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
   app.innerHTML = `
   <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
-    <div class="session"><i class="dot" aria-hidden="true"></i><span class="em" title="${esc(state.user)}">${esc(state.profile && state.profile.first ? state.profile.first + ' ' + state.profile.last : state.user)}</span>
-    <button class="btn ghost-w" id="logout">Log out</button></div></div></header>
+    <div class="session"><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">${esc(initials())}</button>
+      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
   <main class="wrap">
     <div class="schedule-sticky" aria-label="Schedule controls">
       <div class="schedule-actions">
-        <button class="btn primary" id="add">✦ Add visit</button>
+        <button class="btn primary" id="add">+ Add visit</button>
         <button class="btn" id="scheduleOverview">Schedule Overview</button>
       </div>
       <div class="view-switch" role="group" aria-label="Schedule view">
-        <button type="button" data-view="month" class="active" aria-pressed="true">Month</button>
-        <button type="button" data-view="week" aria-pressed="false">Week</button>
         <button type="button" data-view="agenda" aria-pressed="false">Agenda</button>
-        <button type="button" data-view="quarter" aria-pressed="false">3 Months</button>
+        <button type="button" data-view="week" aria-pressed="false">Week</button>
+        <button type="button" data-view="month" class="active" aria-pressed="true">Month</button>
+        <button type="button" data-view="quarter" aria-pressed="false">3 Month</button>
       </div>
     </div>
     <p class="hint" id="sync" style="text-align:right;margin:6px 0 0${state.syncErr ? ';color:var(--warn)' : ''}">${sb ? esc(state.sync) : ''}</p>
-    ${capacityHtml(months)}
+    <div id="capacityBox" hidden>${capacityHtml(months)}</div>
     <div id="scheduleContent" class="view-content">
     ${statusHtml()}
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
-    <div id="monthContent">${months.map(monthHtml).join('')}</div>
+    <div id="monthContent">${state.loading ? '<div class="skel" style="height:300px" aria-hidden="true"></div>' : months.map(monthHtml).join('')}</div>
     <div id="alternateContent" hidden></div>
     </div>
-    <section class="weeks" id="weeks">
-<h3>Weekly Summary</h3>
-<p class="sub">Your next 4 weeks are shown below. Lock a week once it is final.</p>
-<div class="wk"><div class="info"><b>Loading week 1…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
-<div class="wk"><div class="info"><b>Loading week 2…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
-<div class="wk"><div class="info"><b>Loading week 3…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
-<div class="wk"><div class="info"><b>Loading week 4…</b><small>Visits and revenue</small></div><button class="btn" disabled>Lock week</button></div>
-</section>
+    <section class="weeks" id="weeks"></section>
     ${inviteHtml()}
     <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
+  $('#avatarBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#avatarBtn').setAttribute('aria-expanded', String(!m.hidden)); };
   $('#logout').onclick = async () => {
     if(sb && state.sync === 'Saving…'){ clearTimeout(syncTimer); await syncNow(); }
-    if(sb) {
-      await sb.auth.signOut();
-      state = {user:null, profile:null, authView:'login', pendingEmail:'', loading:false, service:DEFAULT_SERVICE, visits:[], locked:{}, invoices:{}, pay:'', offset:0};
-    } else {
-      // Login is temporarily disabled, so keep the app in local demo mode rather than returning to the login screen.
-      state.user = 'demo@petsbehaving.local';
-      state.profile = {first:'', last:'', business:DEFAULT_SERVICE};
-      state.service = DEFAULT_SERVICE;
-      load();
-    }
+    try { if(sb) await sb.auth.signOut(); } catch(e){}
+    localStorage.removeItem('petrounds:session');
+    sessionStorage.setItem('petrounds:loggedout', '1');
+    state = {user:null, uid:null, profile:null, authView:'login', pendingEmail:'', loading:false, cloudReady:false, service:DEFAULT_SERVICE, visits:[], locked:{}, invoices:{}, pay:'', offset:0};
     render();
   };
   $('#add').onclick = () => openAdd(todayKey);
@@ -429,20 +454,14 @@ function render(){
   document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => setScheduleView(btn.dataset.view));
   if($('#share')) $('#share').onclick = shareCode;
   $('#contactBtn').onclick = openContact;
-  $('#rf').onchange = async e => {
-    const file = e.target.files[0]; if(!file) return;
-    try {
-      const d = JSON.parse(await file.text()); if(!Array.isArray(d.visits)) throw 0;
-      if(!confirm('Replace all current data with this backup?')) return;
-      state.visits = d.visits.map(v => ({...v, id: sb ? uid() : v.id})); state.locked = d.locked||{}; state.invoices = d.invoices||{}; state.pay = d.pay||'';
-      if(d.service){ state.service = d.service; localStorage.setItem('petrounds:service', d.service); }
-      save(); render();
-    } catch(err){ alert('That file is not a backup from this app.'); }
-  };
   document.querySelectorAll('.day[data-k]').forEach(b => b.onclick = () => openDay(b.dataset.k));
   renderWeeks();
+  setScheduleView(state.view || 'month');
 }
 
+function displayName(){ const p = state.profile; return (p && (p.first || p.last)) ? ((p.first || '') + ' ' + (p.last || '')).trim() : (state.user || ''); }
+function initials(){ return displayName().split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join('') || '?'; }
+document.addEventListener('click', e => { const m = $('#acctMenu'); if(m && !m.hidden && !m.contains(e.target)){ m.hidden = true; const b = $('#avatarBtn'); if(b) b.setAttribute('aria-expanded', 'false'); } });
 function capacityHtml(months){
   const rows = months.map(m => {
     const y=m.getFullYear(), mo=m.getMonth(), days=new Date(y,mo+1,0).getDate();
@@ -456,6 +475,8 @@ function capacityHtml(months){
   return `<section class="capacity" aria-labelledby="capacityTitle"><h2 id="capacityTitle">Quarterly Capacity Planner</h2>${rows}<div class="capacity-revenue">QUARTERLY REVENUE: <strong>${money(sumPrice(total))} booked</strong></div></section>`;
 }
 function setScheduleView(view){
+  state.view = view;
+  const cap = $('#capacityBox'); if(cap) cap.hidden = view !== 'quarter';
   document.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
   const monthBox=$('#monthContent'), alt=$('#alternateContent'); if(!monthBox||!alt)return;
   if(view==='month'||view==='quarter'){
@@ -485,35 +506,42 @@ function monthHtml(m){
     cells += `<button class="${cls}" data-k="${k}" aria-label="${fmtDay(parse(k))}, ${vs.length} visits, ${money(t)}${isLocked(k)?', week locked':''}">
       <span class="n">${d}${isLocked(k)?' 🔒':''}</span>
       <span class="pets">${vs.slice(0,6).map(v=>`<i class="pip ${v.type}${v.done?' done':''}"></i>`).join('')}</span>
-      <span class="earn ${t?'':'zero'}">${money(t)}</span></button>`;
+      ${t ? `<span class="earn">${money(t)}</span>` : ''}</button>`;
   }
-  return `<section class="month"><h3>${MONTHS[mo]} ${y} <small style="font:500 15px Figtree;color:var(--mute)">${money(total)} booked</small></h3><div class="grid">${cells}</div></section>`;
+  return `<section class="month"><h3>${MONTHS[mo]} ${y} ${total ? `<small style="font:500 15px Figtree;color:var(--mute)">${money(total)} booked</small>` : ''}</h3><div class="grid">${cells}</div></section>`;
 }
 
+function weeksSkeleton(){
+  return '<h3>Weekly Summary</h3><p class="sub">Loading your next 4 weeks…</p>' + Array.from({length:4}, () =>
+    '<div class="wk" aria-hidden="true"><div class="info"><div class="skel" style="height:16px;width:70%"></div><div class="skel" style="height:12px;width:40%;margin-top:8px"></div></div><div class="skel" style="height:34px;width:96px;border-radius:999px"></div></div>').join('');
+}
 function renderWeeks(){
   const el = $('#weeks');
   if(!el) return;
+  if(state.loading){ el.setAttribute('aria-busy', 'true'); el.innerHTML = weeksSkeleton(); return; }
+  el.removeAttribute('aria-busy');
   const todayMon = key(mondayOf(new Date()));
   let html = `<h3>Weekly Summary</h3><p class="sub">Your next 4 weeks are shown below. Lock a week once it is final. Locked weeks can't be edited.</p>`;
-  for(let i=0;i<4;i++){
-    const d=addDays(parse(todayMon),i*7), mk=key(d), end=addDays(d,6);
-    const vs=weekVisits(mk), lk=!!state.locked[mk];
+  for(let i = 0; i < 4; i++){
+    const d = addDays(parse(todayMon), i*7), mk = key(d), end = addDays(d, 6);
+    const vs = weekVisits(mk), lk = !!state.locked[mk];
     html += `<div class="wk" data-week="${mk}">
-      <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)} ${lk?'<span class="tag">Locked</span>':''}</b>
-      <small>${vs.length} visit${vs.length===1?'':'s'} · ${money(weekTotal(mk))}</small></div>
-      ${lk?`<button class="btn" data-send="${mk}">Send Weekly Summary</button><button class="btn primary" data-inv="${mk}">Invoices</button>`:''}
-      <button class="btn" data-lock="${mk}">${lk?'Unlock week':'Lock week'}</button>
+      <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b><small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div>
+      <div class="wk-actions">${lk
+        ? `<button class="btn" data-send="${mk}">Send summary</button><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn locked" disabled aria-label="Week locked">🔒 Locked</button>`
+        : `<button class="btn primary" data-lock="${mk}">Lock week</button>`}</div>
     </div>`;
   }
-  el.innerHTML=html;
-  el.querySelectorAll('[data-lock]').forEach(b=>b.onclick=()=>{
-    const mk=b.dataset.lock;
+  el.innerHTML = html;
+  el.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => {
+    const mk = b.dataset.lock;
     if(!canWrite()) return blocked();
-    if(state.locked[mk]) delete state.locked[mk]; else state.locked[mk]=true;
+    if(!confirm('Lock this week? Its visits can no longer be edited.')) return;
+    state.locked[mk] = true;
     save(); render();
   });
-  el.querySelectorAll('[data-inv]').forEach(b=>b.onclick=()=>openInvoices(b.dataset.inv));
-  el.querySelectorAll('[data-send]').forEach(b=>b.onclick=()=>openSummary(b.dataset.send));
+  el.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
+  el.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
 }
 
 /* ---------- dialogs ---------- */
@@ -521,13 +549,13 @@ const dlg = $('#dlg');
 const show = html => { $('#dlgBody').innerHTML = html; if(!dlg.open) dlg.showModal(); };
 const close = () => dlg.close();
 
-function toggleDone(id){ if(!canWrite()) return blocked(); state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
+function toggleDone(id){ if(!canWrite()) return blocked(); const tv = state.visits.find(x => x.id === id); if(tv && isLocked(tv.date)){ alert('This week is locked.'); return; } state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
 
 function openDay(k){
   const vs = visitsOn(k), lk = isLocked(k), d = parse(k);
   show(`<h2>${d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</h2>
     <p class="empty" style="margin-top:0">${vs.length} visit${vs.length===1?'':'s'} · ${money(dayTotal(k))}${lk?' · week locked':''}</p>
-    ${vs.length ? vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} (${v.type}) · ${money(visitPrice(v))}</span>
+    ${vs.length ? vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} · ${v.type} · ${money(visitPrice(v))}</span>
       <span style="display:flex;gap:4px"><button class="btn" data-edit="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Edit</button><button class="btn" data-copy="${v.id}" style="padding:2px 10px">Copy</button><button class="btn danger" data-del="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Delete</button></span></div>
       <small>${esc(v.address)}, ${esc(v.postcode)} · ${esc(v.slot)}${v.hname ? ' · ' + esc(v.hname) : ''}</small><label style="margin:2px 0;font-weight:500"><input type="checkbox" data-done="${v.id}" ${v.done?'checked':''}> Done</label><small>Access: ${esc(v.access)}${v.keycode?' ('+esc(v.keycode)+')':''}</small>
       ${v.food?`<small>Food: ${esc(v.food)}</small>`:''}${v.meds?`<small>Medication: ${esc(v.meds)}</small>`:''}${v.vet?`<small>Vet: ${esc(v.vet)}</small>`:''}${v.notes?`<small>Notes: ${esc(v.notes)}</small>`:''}</div>`).join('')
@@ -645,7 +673,7 @@ function summaryText(mk){
   let cur = '';
   vs.forEach(v => {
     if(v.date !== cur){ cur = v.date; L.push(fmtDay(parse(v.date)).toUpperCase()); }
-    L.push(`  ${v.time} ${v.name} (${v.type}), ${money(visitPrice(v))}`,
+    L.push(`  ${v.time} ${v.name} · ${v.type}, ${money(visitPrice(v))}`,
       `    Address: ${v.address}, ${v.postcode}`);
     if(v.meds) L.push(`    Medication: ${v.meds}`);
     if(v.notes) L.push(`    Instructions: ${v.notes}`);
@@ -659,7 +687,7 @@ function openRun(k){
   const vs = visitsOn(k);
   show(`<h2>Run sheet</h2><label for="rd">Date</label><input type="date" id="rd" value="${k}">
     <p class="empty">${fmtLong(parse(k))} · ${vs.length} visit${vs.length===1?'':'s'} · ${money(sumPrice(vs))}</p>
-    ${vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} (${v.type})</span><span>${money(visitPrice(v))}</span></div>
+    ${vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} · ${v.type}</span><span>${money(visitPrice(v))}</span></div>
       <small>${esc(v.address)}, ${esc(v.postcode)}${v.hname ? ' · ' + esc(v.hname) : ''}</small>
       <small>Access: ${esc(v.access)}${v.keycode ? ' (code: ' + esc(v.keycode) + ')' : ''}</small>
       ${v.food ? `<small>Food: ${esc(v.food)}</small>` : ''}${v.meds ? `<small>Medication: ${esc(v.meds)}</small>` : ''}${v.vet ? `<small>Vet: ${esc(v.vet)}</small>` : ''}${v.notes ? `<small>Notes: ${esc(v.notes)}</small>` : ''}
@@ -758,7 +786,7 @@ function openInvoiceDialog(mk, h){
   show(`<h2>Create invoice</h2>
     <label for="pt" style="font-size:16px">Payment terms (days)</label><input type="number" id="pt" min="0" max="365" value="7" style="font-size:18px">
     <p class="empty" style="margin:4px 0 10px">Due date: <b id="dd"></b></p>
-    <div class="preview">${esc(h.visits.map(v => `${fmtDay(parse(v.date))} ${v.time}  ${v.name} (${v.type})  ${money(visitPrice(v))}`).join('\n'))}\n\nTotal ${money(total)}</div>
+    <div class="preview">${esc(h.visits.map(v => `${fmtDay(parse(v.date))} ${v.time}  ${v.name} · ${v.type}  ${money(visitPrice(v))}`).join('\n'))}\n\nTotal ${money(total)}</div>
     <p class="empty">Bill to: ${esc(h.name)} (${esc(h.email)}). The server works out the final total.</p><div class="msg" id="im"></div>
     <div class="actions"><button class="btn" id="x">Cancel</button><button class="btn primary" id="mk">Create invoice</button></div>`);
   const upd = () => { const n = parseInt($('#pt').value, 10); $('#dd').textContent = (n >= 0 && n <= 365) ? fmtLong(addDays(new Date(), n)) : 'enter 0 to 365 days'; };
