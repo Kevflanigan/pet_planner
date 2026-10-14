@@ -640,14 +640,17 @@ function openDay(k){
   show(`<h2>${d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</h2>
     <p class="empty" style="margin-top:0">${vs.length} visit${vs.length===1?'':'s'} · ${money(dayTotal(k))}${lk?' · week locked':''}</p>
     ${vs.length ? vs.map(v => `<div class="visit"><div class="h"><span>${esc(v.time)} ${esc(v.name)} · ${v.type} · ${money(visitPrice(v))}</span>
-      <span style="display:flex;gap:4px"><button class="btn" data-edit="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Edit</button><button class="btn" data-copy="${v.id}" style="padding:2px 10px">Copy</button><button class="btn danger" data-del="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Delete</button></span></div>
+      <span style="display:flex;gap:4px"><button class="btn" data-edit="${v.id}" style="padding:2px 10px">Edit</button><button class="btn" data-copy="${v.id}" style="padding:2px 10px">Copy</button><button class="btn danger" data-del="${v.id}" ${lk?'disabled':''} style="padding:2px 10px">Delete</button></span></div>
       <small>${esc(v.address)}, ${esc(v.postcode)} · ${esc(v.slot)}${v.hname ? ' · ' + esc(v.hname) : ''}</small><label style="margin:2px 0;font-weight:500"><input type="checkbox" data-done="${v.id}" ${v.done?'checked':''}> Done</label><small>Access: ${esc(v.access)}${v.keycode?' ('+esc(v.keycode)+')':''}</small>
       ${v.food?`<small>Food: ${esc(v.food)}</small>`:''}${v.meds?`<small>Medication: ${esc(v.meds)}</small>`:''}${v.vet?`<small>Vet: ${esc(v.vet)}</small>`:''}${v.notes?`<small>Notes: ${esc(v.notes)}</small>`:''}</div>`).join('')
       : '<p class="empty">No visits yet. Add the first one for this day.</p>'}
     <div class="actions"><button class="btn" id="x">Close</button><button class="btn primary" id="addHere" ${lk?'disabled':''}>Add visit on this day</button></div>`);
   $('#x').onclick = close;
   $('#addHere').onclick = () => openAdd(k);
-  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openAdd(k, vs.find(v => v.id === b.dataset.edit)));
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+    if(lk && !(await unlockForEdit(key(mondayOf(parse(k)))))) return;
+    openAdd(k, vs.find(v => v.id === b.dataset.edit));
+  });
   document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => openAdd(k, {...vs.find(v => v.id === b.dataset.copy), id:'', date:k}));
   document.querySelectorAll('[data-done]').forEach(b => b.onchange = () => { toggleDone(b.dataset.done); render(); openDay(k); });
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
@@ -825,14 +828,28 @@ function bindWeekScroller(){
   document.querySelectorAll('[data-wstep]').forEach(b => b.onclick = () => go(addDays(state.weekStart || mondayOf(new Date()), 7 * Number(b.dataset.wstep))));
   const on = document.querySelector('#wstrip .on'); if(on) on.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
 }
+async function unlockForEdit(mk){
+  if(!canWrite()){ blocked(); return false; }
+  const hasInv = Object.values(state.invDb || {}).some(r => r.week_start === mk) || Object.keys(state.invoices || {}).some(k => k.startsWith(mk + '|'));
+  if(!confirm('This week is locked. Unlock it to edit this visit?' + (hasInv ? '\n\nInvoices already created for this week will not change.' : ''))) return false;
+  delete state.locked[mk];
+  const a = {...(state.archived || {})}; delete a[mk]; state.archived = a;
+  save();
+  if(sb){ clearTimeout(syncTimer); await syncNow(); if(state.syncErr){ toast('Could not unlock the week. Check your connection.', true); return false; } }
+  render(); return true;
+}
 function openEditList(){
   const from = key(mondayOf(new Date()));
   const list = state.visits.filter(v => v.date >= from).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).slice(0, 60);
-  show(`<h2>Edit visits</h2><p class="empty" style="margin-top:0">Choose a visit to edit. Visits in locked weeks are greyed out.</p>
-    ${list.map(v => `<button class="visit" style="width:100%;text-align:left;background:#fff" data-ev="${v.id}" ${isLocked(v.date) ? 'disabled' : ''}><div class="h"><span>${fmtDay(parse(v.date))} ${esc(v.time)}</span><span>${isLocked(v.date) ? '🔒 Locked' : money(visitPrice(v))}</span></div><small>${esc(v.name)} · ${esc(v.type)} · ${esc(v.hname || 'Client')}</small></button>`).join('') || '<p class="empty">No upcoming visits to edit.</p>'}
+  show(`<h2>Edit visits</h2><p class="empty" style="margin-top:0">Choose a visit to edit. Visits in a locked week will ask you to unlock it first.</p>
+    ${list.map(v => `<button class="visit" style="width:100%;text-align:left;background:#fff" data-ev="${v.id}"><div class="h"><span>${fmtDay(parse(v.date))} ${esc(v.time)}</span><span>${isLocked(v.date) ? '🔒 Locked' : money(visitPrice(v))}</span></div><small>${esc(v.name)} · ${esc(v.type)} · ${esc(v.hname || 'Client')}</small></button>`).join('') || '<p class="empty">No upcoming visits to edit.</p>'}
     <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
   $('#x').onclick = close;
-  document.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => { const v = state.visits.find(x => x.id === b.dataset.ev); if(v) openAdd(v.date, v); });
+  document.querySelectorAll('[data-ev]').forEach(b => b.onclick = async () => {
+    const v = state.visits.find(x => x.id === b.dataset.ev); if(!v) return;
+    if(isLocked(v.date) && !(await unlockForEdit(key(mondayOf(parse(v.date)))))) return;
+    openAdd(v.date, v);
+  });
 }
 function unlockArchived(mk){
   if(!canWrite()) return blocked();
