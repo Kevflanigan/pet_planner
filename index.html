@@ -170,7 +170,7 @@ header.top .wrap{padding:10px 14px}
 .wk .info{flex:1 1 170px;min-width:0}
 .wk-actions{margin-left:auto}
 .wk.is-locked .info{flex:1 1 100%}
-.wk.is-locked .wk-actions{flex:1 1 100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-left:0}
+.wk.is-locked .wk-actions{flex:1 1 100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-left:0}
 .wk.is-locked .wk-actions .btn{width:100%;padding:9px 4px;font-size:14px;white-space:nowrap}
 </style>
 </head>
@@ -215,7 +215,7 @@ let state = { user: sb ? null : (localStorage.getItem('petrounds:session') || (s
 
 function load(){
   if(!state.user || sb) return;
-  try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; state.archived = s.archived||{}; } } catch(e){}
 }
 function canWrite(){ return !sb || !state.ent || state.ent.has_access; }
 function blocked(){
@@ -227,7 +227,7 @@ function save(){
     if(!canWrite()){ blocked(); loadCloud().then(() => render()).catch(() => {}); return; }
     queueSync(); return;
   }
-  try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay})); } catch(e){}
+  try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay, archived:state.archived||{}})); } catch(e){}
 }
 if(state.user){ try { state.profile = JSON.parse(localStorage.getItem('petrounds:profile:' + state.user)); } catch(e){} }
 const visitsOn = k => state.visits.filter(v => v.date === k).sort((a,b) => a.time.localeCompare(b.time));
@@ -277,7 +277,7 @@ async function syncNow(){
     const gone = [...cloudIds].filter(id => !state.visits.some(v => v.id === id));
     if(gone.length){ const r = await sb.from('visits').delete().in('id', gone); if(r.error) throw r.error; }
     cloudIds = new Set(state.visits.map(v => v.id));
-    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:state.pay, updated_at:new Date().toISOString()});
+    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:state.pay, ...(state.hasArchiveCol ? {archived:state.archived || {}} : {}), updated_at:new Date().toISOString()});
     if(r2.error) throw r2.error;
     if(state.clearLocal){ localStorage.removeItem('petrounds:data:' + state.user); state.clearLocal = false; }
     setSync('Saved');
@@ -291,6 +291,8 @@ async function loadCloud(){
   state.locked = (st.data && st.data.locked) || {};
   state.invoices = (st.data && st.data.invoices) || {};
   state.pay = (st.data && st.data.pay) || '';
+  state.archived = (st.data && st.data.archived) || {};
+  state.hasArchiveCol = !(await sb.from('settings').select('archived').limit(1)).error;
   cloudIds = new Set(state.visits.map(x => x.id));
   try {
     const [en, sh, rf] = await Promise.all([sb.rpc('get_my_entitlement'), sb.rpc('get_my_share_info'), sb.from('referrals').select('status')]);
@@ -518,6 +520,40 @@ function monthHtml(m){
   return `<section class="month"><h3>${MONTHS[mo]} ${y} ${total ? `<small style="font:500 15px Figtree;color:var(--mute)">${money(total)} booked</small>` : ''}</h3><div class="grid">${cells}</div></section>`;
 }
 
+const isArchived = mk => !!(state.archived && state.archived[mk]);
+function archiveWeek(mk){
+  if(!canWrite()) return blocked();
+  if(sb && !state.hasArchiveCol){ alert('Archiving needs one small database update. Run 07-archive.sql in Supabase, then reload the page.'); return; }
+  if(!confirm('Archive this week? It moves to History. Its visits and invoices are kept and you can restore it at any time.')) return;
+  state.archived = {...(state.archived || {}), [mk]: new Date().toISOString()};
+  save(); render();
+}
+function restoreWeek(mk){
+  if(!canWrite()) return blocked();
+  const a = {...(state.archived || {})}; delete a[mk]; state.archived = a;
+  save(); render(); openHistory();
+}
+function openHistory(){
+  const weeks = Object.keys(state.archived || {}).sort().reverse();
+  show(`<h2>History</h2><p class="empty" style="margin-top:0">Archived weeks. Tap a week to see its visits.</p>
+    ${weeks.length ? weeks.map(mk => { const vs = weekVisits(mk), d = parse(mk);
+      return `<button class="visit" style="width:100%;text-align:left;background:#fff" data-hw="${mk}"><div class="h"><span>${fmtDay(d)} to ${fmtDay(addDays(d, 6))}</span><span>${money(weekTotal(mk))}</span></div><small>${vs.length} visit${vs.length === 1 ? '' : 's'}</small></button>`; }).join('')
+      : '<p class="empty">No archived weeks yet. Lock a week, then press Archive.</p>'}
+    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+  document.querySelectorAll('[data-hw]').forEach(b => b.onclick = () => openArchivedWeek(b.dataset.hw));
+}
+function openArchivedWeek(mk){
+  const vs = weekVisits(mk), d = parse(mk);
+  const inv = Object.values(state.invDb || {}).filter(r => r.week_start === mk);
+  show(`<h2>${fmtDay(d)} to ${fmtDay(addDays(d, 6))}</h2>
+    <p class="empty" style="margin-top:0">${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}${inv.length ? ' • ' + inv.length + ' invoice' + (inv.length === 1 ? '' : 's') + ': ' + inv.map(r => esc(r.invoice_number) + ' ' + esc(r.status)).join(', ') : ''}</p>
+    ${vs.map(v => `<div class="visit"><div class="h"><span>${fmtDay(parse(v.date))} ${esc(v.time)}</span><span>${money(visitPrice(v))}</span></div><small>${esc(v.name)} · ${esc(v.type)} · ${esc(v.hname || 'Client')}</small>${v.address ? `<small>${esc(v.address)}${v.postcode ? ', ' + esc(v.postcode) : ''}</small>` : ''}</div>`).join('') || '<p class="empty">No visits.</p>'}
+    <div class="actions"><button class="btn" id="bk">Back</button><button class="btn" id="rs">Restore to summary</button></div>`);
+  $('#bk').onclick = openHistory;
+  $('#rs').onclick = () => restoreWeek(mk);
+}
+
 function weeksSkeleton(){
   return '<h3>Weekly Summary</h3><p class="sub">Loading your next 4 weeks…</p>' + Array.from({length:4}, () =>
     '<div class="wk" aria-hidden="true"><div class="info"><div class="skel" style="height:16px;width:70%"></div><div class="skel" style="height:12px;width:40%;margin-top:8px"></div></div><div class="skel" style="height:34px;width:96px;border-radius:999px"></div></div>').join('');
@@ -528,14 +564,18 @@ function renderWeeks(){
   if(state.loading){ el.setAttribute('aria-busy', 'true'); el.innerHTML = weeksSkeleton(); return; }
   el.removeAttribute('aria-busy');
   const todayMon = key(mondayOf(new Date()));
-  let html = `<h3>Weekly Summary</h3><p class="sub">Your next 4 weeks are shown below. Lock a week once it is final. Locked weeks can't be edited.</p>`;
-  for(let i = 0; i < 4; i++){
+  const nArch = Object.keys(state.archived || {}).length;
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>Weekly Summary</h3><button class="btn" id="histBtn">History${nArch ? ' (' + nArch + ')' : ''}</button></div><p class="sub">Your next 4 weeks are shown below. Lock a week once it is final, then archive it to keep it in History.</p>`;
+  let shown = 0;
+  for(let i = 0; shown < 4 && i < 20; i++){
     const d = addDays(parse(todayMon), i*7), mk = key(d), end = addDays(d, 6);
+    if(isArchived(mk)) continue;
+    shown++;
     const vs = weekVisits(mk), lk = !!state.locked[mk];
     html += `<div class="wk${lk ? ' is-locked' : ''}" data-week="${mk}">
       <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b><small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div>
       <div class="wk-actions">${lk
-        ? `<button class="btn" data-send="${mk}">Send summary</button><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn locked" disabled aria-label="Week locked">🔒 Locked</button>`
+        ? `<button class="btn" data-send="${mk}">Send summary</button><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-archive="${mk}">Archive</button><button class="btn locked" disabled aria-label="Week locked">🔒 Locked</button>`
         : `<button class="btn primary" data-lock="${mk}">Lock week</button>`}</div>
     </div>`;
   }
@@ -549,6 +589,8 @@ function renderWeeks(){
   });
   el.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
   el.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
+  el.querySelectorAll('[data-archive]').forEach(b => b.onclick = () => archiveWeek(b.dataset.archive));
+  $('#histBtn').onclick = openHistory;
 }
 
 /* ---------- dialogs ---------- */
