@@ -172,6 +172,7 @@ header.top .wrap{padding:10px 14px}
 .wk.is-locked .info{flex:1 1 100%}
 .wk.is-locked .wk-actions{flex:1 1 100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-left:0}
 .wk.is-locked .wk-actions .btn{width:100%;padding:9px 4px;font-size:14px;white-space:nowrap}
+.status-locked{display:inline-block;margin:3px 0;padding:2px 10px;border-radius:999px;background:#E6EBE8;color:#7A8892;font-size:12px;font-weight:600}
 </style>
 </head>
 <body>
@@ -520,6 +521,15 @@ function monthHtml(m){
   return `<section class="month"><h3>${MONTHS[mo]} ${y} ${total ? `<small style="font:500 15px Figtree;color:var(--mute)">${money(total)} booked</small>` : ''}</h3><div class="grid">${cells}</div></section>`;
 }
 
+function unlockWeek(mk){
+  if(!canWrite()) return blocked();
+  const hasInv = Object.values(state.invDb || {}).some(r => r.week_start === mk) || Object.keys(state.invoices || {}).some(k => k.startsWith(mk + '|'));
+  if(!confirm('Unlock this week? You will be able to edit its visits again.' + (hasInv ? '\n\nInvoices already created for this week will not change.' : ''))) return;
+  delete state.locked[mk];
+  save();
+  if(sb){ clearTimeout(syncTimer); syncNow(); }   // save the unlock straight away so edits are not blocked
+  render();
+}
 const isArchived = mk => !!(state.archived && state.archived[mk]);
 function archiveWeek(mk){
   if(!canWrite()) return blocked();
@@ -573,9 +583,9 @@ function renderWeeks(){
     shown++;
     const vs = weekVisits(mk), lk = !!state.locked[mk];
     html += `<div class="wk${lk ? ' is-locked' : ''}" data-week="${mk}">
-      <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b><small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div>
+      <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b>${lk ? '<span class="status-locked">🔒 Locked</span>' : ''}<small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div>
       <div class="wk-actions">${lk
-        ? `<button class="btn" data-send="${mk}">Send summary</button><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-archive="${mk}">Archive</button><button class="btn locked" disabled aria-label="Week locked">🔒 Locked</button>`
+        ? `<button class="btn" data-send="${mk}">Send summary</button><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-archive="${mk}">Archive</button><button class="btn" data-unlock="${mk}">Unlock</button>`
         : `<button class="btn primary" data-lock="${mk}">Lock week</button>`}</div>
     </div>`;
   }
@@ -590,6 +600,7 @@ function renderWeeks(){
   el.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
   el.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
   el.querySelectorAll('[data-archive]').forEach(b => b.onclick = () => archiveWeek(b.dataset.archive));
+  el.querySelectorAll('[data-unlock]').forEach(b => b.onclick = () => unlockWeek(b.dataset.unlock));
   $('#histBtn').onclick = openHistory;
 }
 
