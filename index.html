@@ -173,6 +173,25 @@ header.top .wrap{padding:10px 14px}
 .wk.is-locked .wk-actions{flex:1 1 100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-left:0}
 .wk.is-locked .wk-actions .btn{width:100%;padding:9px 4px;font-size:14px;white-space:nowrap}
 .status-locked{display:inline-block;margin:3px 0;padding:2px 10px;border-radius:999px;background:#E6EBE8;color:#7A8892;font-size:12px;font-weight:600}
+.session{display:flex;align-items:center;gap:8px}
+#logoutTop{padding:7px 14px;background:#fff;color:var(--brand-d);border-color:#fff;font-weight:700;font-size:14px}
+.wscroll{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.wnav{flex:none;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--brand-d);background:#fff;color:var(--brand-d);font-size:18px;padding:0}
+.wstrip{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scroll-behavior:smooth;scrollbar-width:none;flex:1;padding:2px}
+.wstrip::-webkit-scrollbar{display:none}
+.wchip{flex:none;scroll-snap-align:center;border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600}
+.wchip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.bankbox{background:#F4F7F5;border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
+.flow-row{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.flow-row small{display:block;color:var(--mute)}
+.dotst{flex:none;width:12px;height:12px;border-radius:50%;background:#C3CFCA}
+.flow-row.work .dotst{background:var(--brand);animation:pulse 1s ease-in-out infinite}
+.flow-row.ok .dotst{background:var(--brand)}
+.flow-row.bad .dotst{background:var(--warn)}
+@keyframes pulse{50%{opacity:.35}}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:var(--brand-d);color:#fff;padding:12px 18px;border-radius:999px;transition:.25s;z-index:100;pointer-events:none;max-width:90vw;text-align:center;font-weight:600}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast.bad{background:var(--warn)}
 </style>
 </head>
 <body>
@@ -216,7 +235,7 @@ let state = { user: sb ? null : (localStorage.getItem('petrounds:session') || (s
 
 function load(){
   if(!state.user || sb) return;
-  try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; state.archived = s.archived||{}; } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; state.archived = s.archived||{}; state.invPrefix = s.invPrefix||''; } } catch(e){}
 }
 function canWrite(){ return !sb || !state.ent || state.ent.has_access; }
 function blocked(){
@@ -228,7 +247,7 @@ function save(){
     if(!canWrite()){ blocked(); loadCloud().then(() => render()).catch(() => {}); return; }
     queueSync(); return;
   }
-  try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:state.pay, archived:state.archived||{}})); } catch(e){}
+  try { localStorage.setItem('petrounds:data:'+state.user, JSON.stringify({visits:state.visits, locked:state.locked, invoices:state.invoices, pay:'', archived:state.archived||{}, invPrefix:state.invPrefix||''})); } catch(e){}
 }
 if(state.user){ try { state.profile = JSON.parse(localStorage.getItem('petrounds:profile:' + state.user)); } catch(e){} }
 const visitsOn = k => state.visits.filter(v => v.date === k).sort((a,b) => a.time.localeCompare(b.time));
@@ -249,14 +268,14 @@ function households(mk){
   return Object.values(m);
 }
 const inv = (mk,e) => state.invoices[mk+'|'+e] || {};
-const invNo = (mk,e) => 'INV-' + mk.replace(/-/g,'') + '-' + String(Math.abs([...e].reduce((a,c) => (a*31 + c.charCodeAt(0))|0, 7)) % 1000).padStart(3,'0');
+const invNo = (mk,e) => (state.invPrefix || 'INV') + '-' + mk.replace(/-/g,'') + '-' + String(Math.abs([...e].reduce((a,c) => (a*31 + c.charCodeAt(0))|0, 7)) % 1000).padStart(3,'0');
 function invoiceText(mk,h){
   const s = parse(mk), e = addDays(s,6), L = [];
   L.push(`INVOICE ${invNo(mk,h.email)}`, state.service, `From: ${state.user}`, '', `To: ${h.name}${h.email ? ' <'+h.email+'>' : ''}`,
     `Issued: ${fmtLong(e)}`, `Due: ${fmtLong(addDays(e,7))}`, `Week: ${fmtDay(s)} to ${fmtDay(e)}`, '');
   h.visits.forEach(v => L.push(`${fmtDay(parse(v.date))} ${v.time}  ${v.name} · ${v.type}  ${money(visitPrice(v))}`));
   L.push('', `TOTAL DUE: ${money(sumPrice(h.visits))}`);
-  if(state.pay) L.push('', 'How to pay:', state.pay);
+  const bk = getBank(); if(bk.acc) L.push('', 'How to pay:', 'Account number: ' + bk.acc, 'Sort code: ' + bk.sort, 'Reference: ' + invNo(mk, h.email));
   L.push('', 'Thank you!');
   return L.join('\n');
 }
@@ -278,7 +297,7 @@ async function syncNow(){
     const gone = [...cloudIds].filter(id => !state.visits.some(v => v.id === id));
     if(gone.length){ const r = await sb.from('visits').delete().in('id', gone); if(r.error) throw r.error; }
     cloudIds = new Set(state.visits.map(v => v.id));
-    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:state.pay, ...(state.hasArchiveCol ? {archived:state.archived || {}} : {}), updated_at:new Date().toISOString()});
+    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:'', ...(state.hasArchiveCol ? {archived:state.archived || {}} : {}), ...(state.hasPrefixCol ? {invoice_prefix:state.invPrefix || null} : {}), updated_at:new Date().toISOString()});
     if(r2.error) throw r2.error;
     if(state.clearLocal){ localStorage.removeItem('petrounds:data:' + state.user); state.clearLocal = false; }
     setSync('Saved');
@@ -293,7 +312,9 @@ async function loadCloud(){
   state.invoices = (st.data && st.data.invoices) || {};
   state.pay = (st.data && st.data.pay) || '';
   state.archived = (st.data && st.data.archived) || {};
+  state.invPrefix = (st.data && st.data.invoice_prefix) || '';
   state.hasArchiveCol = !(await sb.from('settings').select('archived').limit(1)).error;
+  state.hasPrefixCol = !(await sb.from('settings').select('invoice_prefix').limit(1)).error;
   cloudIds = new Set(state.visits.map(x => x.id));
   try {
     const [en, sh, rf] = await Promise.all([sb.rpc('get_my_entitlement'), sb.rpc('get_my_share_info'), sb.from('referrals').select('status')]);
@@ -423,13 +444,13 @@ function render(){
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
   app.innerHTML = `
   <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
-    <div class="session"><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">${esc(initials())}</button>
+    <div class="session"><button type="button" class="btn" id="logoutTop">Log out</button><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">${esc(initials())}</button>
       <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
   <main class="wrap">
     <div class="schedule-sticky" aria-label="Schedule controls">
       <div class="schedule-actions">
         <button class="btn primary" id="add">+ Add visit</button>
-        <button class="btn" id="scheduleOverview">Schedule Overview</button>
+        <button class="btn" id="editVisits">Edit visits</button>
       </div>
       <div class="view-switch" role="group" aria-label="Schedule view">
         <button type="button" data-view="agenda" aria-pressed="false">Agenda</button>
@@ -451,16 +472,17 @@ function render(){
     <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
   $('#avatarBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#avatarBtn').setAttribute('aria-expanded', String(!m.hidden)); };
-  $('#logout').onclick = async () => {
+  const doLogout = async () => {
     if(sb && state.sync === 'Saving…'){ clearTimeout(syncTimer); await syncNow(); }
     try { if(sb) await sb.auth.signOut(); } catch(e){}
-    localStorage.removeItem('petrounds:session');
+    localStorage.removeItem('petrounds:session'); localStorage.removeItem(bankKey());
     sessionStorage.setItem('petrounds:loggedout', '1');
     state = {user:null, uid:null, profile:null, authView:'login', pendingEmail:'', loading:false, cloudReady:false, service:DEFAULT_SERVICE, visits:[], locked:{}, invoices:{}, pay:'', offset:0};
     render();
   };
+  $('#logout').onclick = doLogout; $('#logoutTop').onclick = doLogout;
   $('#add').onclick = () => openAdd(todayKey);
-  $('#scheduleOverview').onclick = () => { const target = $('#scheduleContent'); if(target) target.scrollIntoView({behavior:'smooth',block:'start'}); };
+  $('#editVisits').onclick = openEditList;
   document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => setScheduleView(btn.dataset.view));
   if($('#share')) $('#share').onclick = shareCode;
   $('#contactBtn').onclick = openContact;
@@ -496,8 +518,9 @@ function setScheduleView(view){
   }
   monthBox.hidden=true; alt.hidden=false;
   if(view==='week'){
-    const start=mondayOf(new Date()); const dates=Array.from({length:7},(_,i)=>addDays(start,i));
-    alt.innerHTML=`<section class="month"><h3>This week</h3>${dates.map(d=>{const k=key(d),vs=visitsOn(k);return `<div class="visit"><div class="h"><span>${fmtDay(d)}</span><span>${money(sumPrice(vs))}</span></div>${vs.length?vs.map(v=>`<small>${esc(v.time||'')} · ${esc(v.name||'Visit')} · ${esc(v.hname||'Client')}</small>`).join(''):'<small>No visits scheduled</small>'}</div>`}).join('')}</section>`;
+    const start=state.weekStart||mondayOf(new Date()); const dates=Array.from({length:7},(_,i)=>addDays(start,i));
+    alt.innerHTML=`<section class="month">${weekScroller(start)}${dates.map(d=>{const k=key(d),vs=visitsOn(k);return `<div class="visit"><div class="h"><span>${fmtDay(d)}</span><span>${money(sumPrice(vs))}</span></div>${vs.length?vs.map(v=>`<small>${esc(v.time||'')} · ${esc(v.name||'Visit')} · ${esc(v.hname||'Client')}</small>`).join(''):'<small>No visits scheduled</small>'}</div>`}).join('')}</section>`;
+    bindWeekScroller();
   }else{
     const upcoming=state.visits.filter(v=>v.date>=todayKey).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
     alt.innerHTML=`<section class="month"><h3>Upcoming visits</h3>${upcoming.length?upcoming.map(v=>`<div class="visit"><div class="h"><span>${fmtDay(parse(v.date))} · ${esc(v.time||'')}</span><span>${money(visitPrice(v))}</span></div><small>${esc(v.name||'Visit')} · ${esc(v.type||'Pet')} · ${esc(v.hname||'Client')}</small></div>`).join(''):'<p class="empty">No upcoming visits.</p>'}</section>`;
@@ -559,7 +582,8 @@ function openArchivedWeek(mk){
   show(`<h2>${fmtDay(d)} to ${fmtDay(addDays(d, 6))}</h2>
     <p class="empty" style="margin-top:0">${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}${inv.length ? ' • ' + inv.length + ' invoice' + (inv.length === 1 ? '' : 's') + ': ' + inv.map(r => esc(r.invoice_number) + ' ' + esc(r.status)).join(', ') : ''}</p>
     ${vs.map(v => `<div class="visit"><div class="h"><span>${fmtDay(parse(v.date))} ${esc(v.time)}</span><span>${money(visitPrice(v))}</span></div><small>${esc(v.name)} · ${esc(v.type)} · ${esc(v.hname || 'Client')}</small>${v.address ? `<small>${esc(v.address)}${v.postcode ? ', ' + esc(v.postcode) : ''}</small>` : ''}</div>`).join('') || '<p class="empty">No visits.</p>'}
-    <div class="actions"><button class="btn" id="bk">Back</button><button class="btn" id="rs">Restore to summary</button></div>`);
+    <div class="actions"><button class="btn" id="bk">Back</button><button class="btn" id="rs">Restore to summary</button><button class="btn primary" id="ul">Unlock to edit</button></div>`);
+  $('#ul').onclick = () => unlockArchived(mk);
   $('#bk').onclick = openHistory;
   $('#rs').onclick = () => restoreWeek(mk);
 }
@@ -597,7 +621,7 @@ function renderWeeks(){
     state.locked[mk] = true;
     save(); render();
   });
-  el.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
+  document.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
   el.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
   el.querySelectorAll('[data-archive]').forEach(b => b.onclick = () => archiveWeek(b.dataset.archive));
   el.querySelectorAll('[data-unlock]').forEach(b => b.onclick = () => unlockWeek(b.dataset.unlock));
@@ -778,12 +802,97 @@ function openEarn(){
   $('#x').onclick = close;
 }
 
+function bankKey(){ return 'petrounds:bank:' + (state.user || ''); }
+function getBank(){ try { return JSON.parse(localStorage.getItem(bankKey())) || {acc:'', sort:''}; } catch(e){ return {acc:'', sort:''}; } }
+function setBank(b){ try { localStorage.setItem(bankKey(), JSON.stringify(b)); } catch(e){} }
+function toast(msg, bad){
+  let t = $('#toast');
+  if(!t){ t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); }
+  (dlg.open ? dlg : document.body).appendChild(t);
+  t.textContent = msg; t.className = 'show' + (bad ? ' bad' : '');
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.className = ''; }, 3500);
+}
+function weekScroller(start){
+  const base = mondayOf(new Date()), cur = key(start);
+  const chips = Array.from({length:17}, (_, i) => addDays(base, (i - 4) * 7)).map(d =>
+    `<button type="button" class="wchip${key(d) === cur ? ' on' : ''}" data-wk="${key(d)}">${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}</button>`).join('');
+  return `<div class="wscroll"><button type="button" class="wnav" data-wstep="-1" aria-label="Previous week">‹</button><div class="wstrip" id="wstrip">${chips}</div><button type="button" class="wnav" data-wstep="1" aria-label="Next week">›</button></div>
+    <h3>${start.getTime() === base.getTime() ? 'This week' : 'Week of ' + fmtDay(start)}${isLocked(cur) ? ' 🔒' : ''}</h3>`;
+}
+function bindWeekScroller(){
+  const go = d => { state.weekStart = d; setScheduleView('week'); };
+  document.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => go(parse(b.dataset.wk)));
+  document.querySelectorAll('[data-wstep]').forEach(b => b.onclick = () => go(addDays(state.weekStart || mondayOf(new Date()), 7 * Number(b.dataset.wstep))));
+  const on = document.querySelector('#wstrip .on'); if(on) on.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
+}
+function openEditList(){
+  const from = key(mondayOf(new Date()));
+  const list = state.visits.filter(v => v.date >= from).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).slice(0, 60);
+  show(`<h2>Edit visits</h2><p class="empty" style="margin-top:0">Choose a visit to edit. Visits in locked weeks are greyed out.</p>
+    ${list.map(v => `<button class="visit" style="width:100%;text-align:left;background:#fff" data-ev="${v.id}" ${isLocked(v.date) ? 'disabled' : ''}><div class="h"><span>${fmtDay(parse(v.date))} ${esc(v.time)}</span><span>${isLocked(v.date) ? '🔒 Locked' : money(visitPrice(v))}</span></div><small>${esc(v.name)} · ${esc(v.type)} · ${esc(v.hname || 'Client')}</small></button>`).join('') || '<p class="empty">No upcoming visits to edit.</p>'}
+    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+  document.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => { const v = state.visits.find(x => x.id === b.dataset.ev); if(v) openAdd(v.date, v); });
+}
+function unlockArchived(mk){
+  if(!canWrite()) return blocked();
+  if(!confirm('Unlock this past week so you can correct it? It leaves History and its visits become editable again.')) return;
+  delete state.locked[mk];
+  const a = {...(state.archived || {})}; delete a[mk]; state.archived = a;
+  save(); if(sb){ clearTimeout(syncTimer); syncNow(); }
+  render(); close(); toast('Week unlocked. Edit its visits from the calendar.');
+}
+async function runInvoiceFlow(mk, hs, terms){
+  const bk = getBank(), acc = (bk.acc || '').replace(/\D/g, ''), sort = (bk.sort || '').replace(/\D/g, '');
+  if(!/^\d{8}$/.test(acc) || !/^\d{6}$/.test(sort)){ toast('Enter an 8-digit account number and a 6-digit sort code first.', true); return; }
+  if(!(terms >= 0 && terms <= 365)){ toast('Payment terms must be 0 to 365 days.', true); return; }
+  const targets = hs.filter(h => h.email);
+  if(!targets.length){ toast('No client emails are saved for this week.', true); return; }
+  const rows = targets.map(h => ({h, text:'Waiting', cls:''}));
+  const paint = (title, done) => {
+    show(`<h2>${esc(title)}</h2><div>${rows.map(r => `<div class="flow-row ${r.cls}"><span class="dotst"></span><div><b>${esc(r.h.name)}</b><small>${esc(r.text)}</small></div></div>`).join('')}</div>
+      <div class="actions">${done ? '<button class="btn primary" id="x">Done</button>' : '<span class="empty">Please keep this open…</span>'}</div>`);
+    if(done) $('#x').onclick = close;
+  };
+  paint('Locking week…');
+  if(!state.locked[mk]){
+    state.locked[mk] = true; save();
+    clearTimeout(syncTimer); await syncNow();
+    if(state.syncErr){ rows.forEach(r => { r.cls = 'bad'; r.text = 'Could not lock the week. Check your connection.'; }); paint('Something went wrong', true); return; }
+  }
+  let failed = 0;
+  for(const r of rows){
+    const k = mk + '|' + r.h.email;
+    r.cls = 'work'; r.text = 'Creating invoice…'; paint('Sending invoices…');
+    let invoice = (state.invDb || {})[k];
+    if(!invoice){
+      await sb.rpc('create_invoice', {p_week: mk, p_customer_email: r.h.email, p_terms: terms});
+      await loadInvoices(); invoice = state.invDb[k];
+    }
+    if(!invoice){ r.cls = 'bad'; r.text = 'Could not create the invoice.'; failed++; paint('Sending invoices…'); continue; }
+    r.text = 'Sending invoice to client…'; paint('Sending invoices…');
+    const { data, error } = await sb.functions.invoke('send-invoice', { body: { invoice_id: invoice.id, bank: { account: acc, sort_code: sort } } });
+    if(error || !data || data.error || data.customer === 'failed'){ r.cls = 'bad'; r.text = 'Could not send. You can try again.'; failed++; }
+    else { r.cls = 'ok'; r.text = data.customer === 'already' ? 'Already sent earlier.' : data.owner === 'failed' ? 'Sent to client. Your copy failed.' : 'Invoice sent successfully! A copy is in your inbox.'; }
+    paint('Sending invoices…');
+  }
+  await loadInvoices(); render();
+  paint(failed ? 'Finished with some issues' : 'All invoices sent', true);
+  toast(failed ? failed + ' invoice(s) need attention.' : 'Invoices sent successfully!', !!failed);
+}
+
 function openInvoices(mk){
   if(!state.locked[mk]){ state.locked[mk] = true; save(); render(); }
   const hs = households(mk), s = parse(mk), e = addDays(s,6);
   show(`<h2>Invoices: ${fmtDay(s)} to ${fmtDay(e)}</h2>
-    <p class="empty" style="margin-top:0">One invoice per household, due 7 days after the week ends. Email invoice opens your email app with the invoice filled in. Invoicing locks the week.</p>
-    <label for="pay">Payment details (shown on every invoice)</label><textarea id="pay" placeholder="e.g. Bank transfer to 00-00-00, account 00000000, reference: invoice number">${esc(state.pay)}</textarea>
+    <p class="empty" style="margin-top:0">One invoice per household. Sending locks the week, creates each invoice, emails the client and sends you a copy.</p>
+    <div class="bankbox"><b>Payment details</b>
+      <label for="bacc">Bank account number</label><input type="text" id="bacc" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 digits" value="${esc(getBank().acc)}">
+      <label for="bsort">Sort code</label><input type="text" id="bsort" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="00-00-00" value="${esc(getBank().sort)}">
+      <label for="bpref">Invoice number prefix</label><input type="text" id="bpref" maxlength="12" autocomplete="off" placeholder="INV" value="${esc(state.invPrefix || '')}">
+      <label for="bterm">Payment terms (days)</label><input type="number" id="bterm" min="0" max="365" value="7">
+      <p class="empty" style="font-size:12px;margin:8px 0 0">Bank details are not stored permanently in the app database to protect user privacy and PII. They stay on this device and are only sent in the invoice email.</p></div>
+    ${sb ? '<button class="btn primary" id="sendAll" style="width:100%;margin:4px 0 10px">Send invoices to clients</button>' : ''}
     ${hs.map((h,i) => { const st = inv(mk,h.email); return `<div class="visit"><div class="h"><span>${esc(h.name)}</span><span>${money(sumPrice(h.visits))}</span></div>
       <small>${esc(h.email || 'No email saved for this household')} · ${h.visits.length} visit${h.visits.length===1?'':'s'}</small>
       <div style="margin:6px 0">${st.sent?'<span class="tag">Sent</span> ':''}${st.paid?'<span class="tag paid">Paid</span>':''}</div>
@@ -792,7 +901,15 @@ function openInvoices(mk){
       <button class="btn primary" data-mail="${i}" ${h.email?'':'disabled'}>${sb ? ((state.invDb || {})[mk + '|' + h.email] ? 'View invoice' : 'Create invoice') : (st.sent ? 'Resend invoice' : 'Email invoice')}</button></div></div>`; }).join('') || '<p class="empty">No visits this week.</p>'}
     <div class="actions"><button class="btn" id="x">Close</button></div>`);
   $('#x').onclick = close;
-  $('#pay').oninput = ev => { state.pay = ev.target.value; save(); };
+  const keepBank = () => setBank({acc:$('#bacc').value.replace(/\D/g, ''), sort:$('#bsort').value.replace(/[^\d-]/g, '')});
+  $('#bacc').oninput = keepBank; $('#bsort').oninput = keepBank;
+  $('#bpref').onchange = ev => {
+    const v = ev.target.value.trim();
+    if(!/^[A-Za-z0-9-]{0,12}$/.test(v)){ toast('Prefix can use letters, numbers and hyphens only.', true); ev.target.value = state.invPrefix || ''; return; }
+    if(sb && !state.hasPrefixCol){ toast('Run 08-invoicing.sql in Supabase to save a prefix.', true); return; }
+    state.invPrefix = v; save();
+  };
+  if($('#sendAll')) $('#sendAll').onclick = () => runInvoiceFlow(mk, hs, parseInt($('#bterm').value, 10));
   document.querySelectorAll('[data-paid]').forEach(b => b.onclick = () => {
     const h = hs[b.dataset.paid], k = mk+'|'+h.email;
     state.invoices[k] = {...inv(mk,h.email), paid: !inv(mk,h.email).paid}; save(); render(); openInvoices(mk);
