@@ -165,6 +165,13 @@ header.top .wrap{padding:10px 14px}
 .skel{border-radius:12px;background:linear-gradient(90deg,#E4EAE6 25%,#F2F5F3 37%,#E4EAE6 63%);background-size:400% 100%;animation:shimmer 1.3s ease infinite}
 @keyframes shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
 @media(prefers-reduced-motion:reduce){.skel{animation:none}}
+/* week cards: stable layout, locked cards put their actions on their own row */
+.wk{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.wk .info{flex:1 1 170px;min-width:0}
+.wk-actions{margin-left:auto}
+.wk.is-locked .info{flex:1 1 100%}
+.wk.is-locked .wk-actions{flex:1 1 100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-left:0}
+.wk.is-locked .wk-actions .btn{width:100%;padding:9px 4px;font-size:14px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -525,7 +532,7 @@ function renderWeeks(){
   for(let i = 0; i < 4; i++){
     const d = addDays(parse(todayMon), i*7), mk = key(d), end = addDays(d, 6);
     const vs = weekVisits(mk), lk = !!state.locked[mk];
-    html += `<div class="wk" data-week="${mk}">
+    html += `<div class="wk${lk ? ' is-locked' : ''}" data-week="${mk}">
       <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b><small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div>
       <div class="wk-actions">${lk
         ? `<button class="btn" data-send="${mk}">Send summary</button><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn locked" disabled aria-label="Week locked">🔒 Locked</button>`
