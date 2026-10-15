@@ -199,6 +199,10 @@ header.top .wrap{padding:10px 14px}
 .wk.is-locked{padding-bottom:14px}
 .wk.is-locked .wk-actions{grid-template-columns:1fr 1fr;gap:8px}
 .wk.is-locked .wk-actions>.btn{grid-column:auto!important;grid-row:auto!important;width:100%;min-height:42px;padding:8px 6px;font-size:14px}
+.menu{min-width:260px}
+.mi{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 4px;font-size:15px;color:var(--ink);border-radius:0}
+.mi-check{display:flex;gap:8px;align-items:center;padding:11px 4px;font-size:14px;color:var(--ink);margin:0 0 6px;font-weight:500}
+.st-overdue{color:var(--warn)}.st-paid{color:var(--brand)}
 </style>
 </head>
 <body>
@@ -319,6 +323,7 @@ async function loadCloud(){
   state.invoices = (st.data && st.data.invoices) || {};
   state.pay = (st.data && st.data.pay) || '';
   state.archived = (st.data && st.data.archived) || {};
+  state.remind = st.data ? st.data.visit_reminders : true;
   state.invPrefix = (st.data && st.data.invoice_prefix) || '';
   state.hasArchiveCol = !(await sb.from('settings').select('archived').limit(1)).error;
   state.hasPrefixCol = !(await sb.from('settings').select('invoice_prefix').limit(1)).error;
@@ -454,7 +459,7 @@ function render(){
   app.innerHTML = `
   <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
     <div class="session"><button type="button" class="btn" id="logoutTop">Log out</button><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">${esc(initials())}</button>
-      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
+      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><div><button type="button" class="mi" data-mi="run">Today's run sheet</button><button type="button" class="mi" data-mi="invlist">Invoices</button><button type="button" class="mi" data-mi="earn">Earnings</button><button type="button" class="mi" data-mi="xvis">Export visits (CSV)</button><button type="button" class="mi" data-mi="xinv">Export invoices (CSV)</button><label class="mi-check"><input type="checkbox" id="remToggle"> Evening visit reminder email</label></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
   <main class="wrap">
     <div class="schedule-sticky" aria-label="Schedule controls">
       <div class="schedule-actions">
@@ -481,6 +486,18 @@ function render(){
     <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
   $('#avatarBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#avatarBtn').setAttribute('aria-expanded', String(!m.hidden)); };
+  const goto = {run: () => openRun(todayKey), invlist: openInvoiceList, earn: openEarnings, xvis: exportVisits, xinv: exportInvoices};
+  document.querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { $('#acctMenu').hidden = true; goto[b.dataset.mi](); });
+  const rt = $('#remToggle');
+  if(rt){
+    rt.checked = state.remind !== false;
+    rt.onchange = async () => {
+      if(!sb){ toast('Reminders need a signed-in account.', true); rt.checked = false; return; }
+      const { error } = await sb.rpc('set_visit_reminders', {p_on: rt.checked});
+      if(error){ toast('Run 09-reports-reminders.sql in Supabase first.', true); rt.checked = !rt.checked; return; }
+      state.remind = rt.checked; toast(rt.checked ? 'Evening reminders on' : 'Evening reminders off');
+    };
+  }
   const doLogout = async () => {
     if(sb && state.sync === 'Saving…'){ clearTimeout(syncTimer); await syncNow(); }
     try { if(sb) await sb.auth.signOut(); } catch(e){}
@@ -671,7 +688,7 @@ function openAdd(k, ed){
   if(!canWrite()) return blocked();
   const pets = [...new Map(state.visits.map(v => [(v.name+'|'+v.hemail).toLowerCase(), v])).values()];
   show(`<h2>${ed && ed.id ? 'Edit visit' : 'Add new visit'}</h2><form id="vf">
-    ${pets.length && !ed ? `<label for="f-pet">Use a saved pet</label><select id="f-pet"><option value="">New pet</option>${pets.map((v,i) => `<option value="${i}">${esc(v.name)} (${esc(v.hname || v.hemail)})</option>`).join('')}</select>` : ''}
+    ${pets.length && !ed ? `<label for="f-pet">Use a saved client or pet</label><select id="f-pet"><option value="">New pet</option>${pets.map((v,i) => `<option value="${i}">${esc(v.name)} · ${esc(v.hname || v.hemail)}</option>`).join('')}</select>` : ''}
     <div class="row"><div><label for="f-name">Animal name</label><input type="text" id="f-name" required></div>
     <div><label for="f-date">Date</label><input type="date" id="f-date" value="${k}" ${ed && ed.id ? '' : 'min="' + todayKey + '"'} required></div></div>
     <div class="row"><div><label for="f-hn">Household name</label><input type="text" id="f-hn" required></div>
@@ -846,6 +863,60 @@ async function unlockForEdit(mk){
   save();
   if(sb){ clearTimeout(syncTimer); await syncNow(); if(state.syncErr){ toast('Could not unlock the week. Check your connection.', true); return false; } }
   render(); return true;
+}
+const invStatus = r => (r.status === 'sent' && r.due_date < todayKey) ? 'overdue' : r.status;
+function openInvoiceList(){
+  if(!sb){ show('<h2>Invoices</h2><p class="empty">Invoices need a signed-in account.</p><div class="actions"><button class="btn primary" id="x">Close</button></div>'); $('#x').onclick = close; return; }
+  const rows = Object.values(state.invDb || {}).sort((a, b) => b.invoice_number.localeCompare(a.invoice_number));
+  const sum = f => money(rows.filter(r => f(invStatus(r))).reduce((t, r) => t + Number(r.total), 0));
+  show(`<h2>Invoices</h2><p class="empty" style="margin-top:0">Outstanding ${sum(x => x === 'sent' || x === 'overdue')} · Overdue <b class="st-overdue">${sum(x => x === 'overdue')}</b> · Paid ${sum(x => x === 'paid')}</p>
+    ${rows.map(r => { const st = invStatus(r); return `<div class="visit"><div class="h"><span>${esc(r.invoice_number)} · ${esc(r.customer_name)}</span><span>${money(Number(r.total))}</span></div>
+      <small>Due ${fmtLong(parse(r.due_date))} · <b class="st-${st}">${esc(st)}</b>${r.reminder_sent_at ? ' · reminder sent' : ''}</small>
+      <div class="actions" style="margin-top:8px"><button class="btn" data-iv="${r.id}">View</button>${st === 'paid' ? `<button class="btn" data-pay="${r.id}" data-to="0">Mark unpaid</button>` : st === 'draft' ? '' : `<button class="btn primary" data-pay="${r.id}" data-to="1">Mark as paid</button>`}</div></div>`; }).join('') || '<p class="empty">No invoices yet. Lock a week, then open Invoices on its card.</p>'}
+    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+  document.querySelectorAll('[data-iv]').forEach(b => b.onclick = () => showInvoice(rows.find(r => r.id === b.dataset.iv)));
+  document.querySelectorAll('[data-pay]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    const { error } = await sb.rpc('set_invoice_paid', {p_id: b.dataset.pay, p_paid: b.dataset.to === '1'});
+    await loadInvoices(); openInvoiceList();
+    toast(error ? 'Run 09-reports-reminders.sql in Supabase first.' : (b.dataset.to === '1' ? 'Marked as paid' : 'Marked as unpaid'), !!error);
+  });
+}
+function downloadCsv(name, rows){
+  const q = v => { let t = String(v ?? ''); if(/^[=+\-@]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
+  const blob = new Blob(['\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportVisits(){
+  const vs = state.visits.slice().sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  downloadCsv(`visits-${todayKey}.csv`, [['Date','Time','Pet','Type','Client','Client email','Address','Postcode','Price (GBP)','Done','Week locked'],
+    ...vs.map(v => [v.date, v.time, v.name, v.type, v.hname, v.hemail, v.address, v.postcode, visitPrice(v).toFixed(2), v.done ? 'Yes' : 'No', isLocked(v.date) ? 'Yes' : 'No'])]);
+  toast('Visits exported');
+}
+function exportInvoices(){
+  const rs = Object.values(state.invDb || {}).sort((a, b) => a.invoice_number.localeCompare(b.invoice_number));
+  downloadCsv(`invoices-${todayKey}.csv`, [['Invoice','Client','Client email','Week starting','Invoice date','Payment terms (days)','Due date','Total (GBP)','Status','Sent at','Paid at'],
+    ...rs.map(r => [r.invoice_number, r.customer_name, r.customer_email, r.week_start, r.invoice_date, r.payment_terms_days, r.due_date, Number(r.total).toFixed(2), invStatus(r), r.sent_at || '', r.paid_at || ''])]);
+  toast(sb ? 'Invoices exported' : 'No invoices to export in test mode', !sb);
+}
+function openEarnings(){
+  const months = [...new Set(state.visits.map(v => v.date.slice(0, 7)))].sort().reverse();
+  const label = m => MONTHS[Number(m.slice(5)) - 1] + ' ' + m.slice(0, 4);
+  const sel = state.earnMonth || todayKey.slice(0, 7);
+  const pool = sel === 'all' ? state.visits : state.visits.filter(v => v.date.startsWith(sel));
+  const by = {};
+  pool.forEach(v => { const k = (v.hemail || v.hname || 'No client').toLowerCase(); (by[k] = by[k] || {name: v.hname || v.hemail || 'No client', vs: []}).vs.push(v); });
+  const clients = Object.values(by).sort((a, b) => sumPrice(b.vs) - sumPrice(a.vs));
+  show(`<h2>Earnings</h2><h3 style="font-size:16px;margin:8px 0 2px">By month</h3>
+    <table><tr><th>Month</th><th>Visits</th><th>Total</th></tr>${months.map(m => { const vs = state.visits.filter(v => v.date.startsWith(m)); return `<tr><td>${label(m)}</td><td>${vs.length}</td><td><b>${money(sumPrice(vs))}</b></td></tr>`; }).join('') || '<tr><td colspan="3">No visits yet</td></tr>'}</table>
+    <h3 style="font-size:16px;margin:16px 0 2px">By client</h3>
+    <select id="em"><option value="all"${sel === 'all' ? ' selected' : ''}>All time</option>${months.map(m => `<option value="${m}"${sel === m ? ' selected' : ''}>${label(m)}</option>`).join('')}</select>
+    <table><tr><th>Client</th><th>Visits</th><th>Total</th></tr>${clients.map(c => `<tr><td>${esc(c.name)}</td><td>${c.vs.length}</td><td><b>${money(sumPrice(c.vs))}</b></td></tr>`).join('') || '<tr><td colspan="3">No visits in this period</td></tr>'}</table>
+    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+  $('#em').onchange = e => { state.earnMonth = e.target.value; openEarnings(); };
 }
 function openEditList(){
   const from = key(mondayOf(new Date()));
