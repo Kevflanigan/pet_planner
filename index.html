@@ -678,33 +678,47 @@ function toggleDone(id){ if(!canWrite()) return blocked(); const tv = state.visi
 
 function openClearVisits(){
   if(!canWrite()) return blocked();
+  const defaultFrom = todayKey;
+  const defaultTo = todayKey;
   show(`<h2>Clear visits</h2>
-    <p class="empty" style="margin-top:0">Choose the day you want to clear. This removes every visit scheduled for that date, but does not delete invoices already created.</p>
-    <label for="clearVisitDate">Day to clear</label>
-    <input type="date" id="clearVisitDate" value="${todayKey}" required style="width:100%;margin:4px 0 12px">
+    <p class="empty" style="margin-top:0">Choose a start and end date. Every visit within that date range (inclusive) will be removed. Invoices already created will remain unchanged.</p>
+    <label for="clearVisitFrom">From date</label>
+    <input type="date" id="clearVisitFrom" value="${defaultFrom}" required style="width:100%;margin:4px 0 10px">
+    <label for="clearVisitTo">To date</label>
+    <input type="date" id="clearVisitTo" value="${defaultTo}" required style="width:100%;margin:4px 0 12px">
     <p id="clearVisitCount" class="empty" style="margin:0 0 12px"></p>
-    <div class="actions"><button class="btn" id="cancelClearVisits">Cancel</button><button class="btn danger" id="confirmClearVisits">Clear visits for this day</button></div>`);
-  const dateInput = $('#clearVisitDate');
+    <div class="actions"><button class="btn" id="cancelClearVisits">Cancel</button><button class="btn danger" id="confirmClearVisits">Clear visits in range</button></div>`);
+  const fromInput = $('#clearVisitFrom');
+  const toInput = $('#clearVisitTo');
   const countEl = $('#clearVisitCount');
   const confirmBtn = $('#confirmClearVisits');
   const updateCount = () => {
-    const k = dateInput.value;
-    const count = k ? state.visits.filter(v => v.date === k).length : 0;
-    countEl.textContent = k ? `${count} visit${count === 1 ? '' : 's'} scheduled for ${fmtDay(parse(k))}.` : 'Choose a date.';
-    confirmBtn.disabled = !k || count === 0;
-    confirmBtn.textContent = count ? `Clear ${count} visit${count === 1 ? '' : 's'}` : 'Nothing to clear';
+    const from = fromInput.value, to = toInput.value;
+    const valid = !!from && !!to && from <= to;
+    const matching = valid ? state.visits.filter(v => v.date >= from && v.date <= to) : [];
+    countEl.textContent = !valid
+      ? 'Choose a valid date range (the end date must be on or after the start date).'
+      : `${matching.length} visit${matching.length === 1 ? '' : 's'} scheduled from ${fmtDay(parse(from))} to ${fmtDay(parse(to))}.`;
+    confirmBtn.disabled = !valid || matching.length === 0;
+    confirmBtn.textContent = matching.length ? `Clear ${matching.length} visit${matching.length === 1 ? '' : 's'}` : 'Nothing to clear';
   };
-  dateInput.onchange = updateCount;
+  fromInput.onchange = updateCount;
+  toInput.onchange = updateCount;
   updateCount();
   $('#cancelClearVisits').onclick = close;
   confirmBtn.onclick = () => {
-    const k = dateInput.value;
-    if(!k) return;
-    const matching = state.visits.filter(v => v.date === k);
+    const from = fromInput.value, to = toInput.value;
+    if(!from || !to || from > to) return;
+    const matching = state.visits.filter(v => v.date >= from && v.date <= to);
     if(!matching.length) return;
-    if(isLocked(k)) { alert('This week is locked. Unlock the week before clearing its visits.'); return; }
-    const dayLabel = fmtDay(parse(k));
-    if(!confirm(`Permanently clear all ${matching.length} visit${matching.length === 1 ? '' : 's'} on ${dayLabel}? Invoices already created will remain unchanged.`)) return;
+    const lockedVisits = matching.filter(v => isLocked(v.date));
+    if(lockedVisits.length) {
+      const weeks = [...new Set(lockedVisits.map(v => key(mondayOf(parse(v.date)))))];
+      alert(`This range includes visits in ${weeks.length} locked week${weeks.length === 1 ? '' : 's'}. Unlock those weeks before clearing this date range. No visits have been removed.`);
+      return;
+    }
+    const fromLabel = fmtDay(parse(from)), toLabel = fmtDay(parse(to));
+    if(!confirm(`Permanently clear all ${matching.length} visit${matching.length === 1 ? '' : 's'} from ${fromLabel} to ${toLabel}? Invoices already created will remain unchanged.`)) return;
     const ids = new Set(matching.map(v => v.id));
     state.visits = state.visits.filter(v => !ids.has(v.id));
     save(); render(); close();
