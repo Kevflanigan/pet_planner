@@ -476,6 +476,7 @@ function render(){
       <div class="schedule-actions">
         <button class="btn primary" id="add">+ Add visit</button>
         <button class="btn" id="editVisits">Edit visits</button>
+        <button class="btn danger" id="clearVisits">Clear visits</button>
       </div>
       <div class="view-switch" role="group" aria-label="Schedule view">
         <button type="button" data-view="agenda" aria-pressed="false">Agenda</button>
@@ -520,6 +521,7 @@ function render(){
   $('#logout').onclick = doLogout; $('#logoutTop').onclick = doLogout;
   $('#add').onclick = () => openAdd(todayKey);
   $('#editVisits').onclick = openEditList;
+  $('#clearVisits').onclick = openClearVisits;
   document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => setScheduleView(btn.dataset.view));
   if($('#share')) $('#share').onclick = shareCode;
   $('#contactBtn').onclick = openContact;
@@ -673,6 +675,41 @@ dlg.addEventListener('close', () => dlg.classList.remove('archive-fullscreen'));
 $('#archiveOpen').onclick = openHistory;
 
 function toggleDone(id){ if(!canWrite()) return blocked(); const tv = state.visits.find(x => x.id === id); if(tv && isLocked(tv.date)){ alert('This week is locked.'); return; } state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
+
+function openClearVisits(){
+  if(!canWrite()) return blocked();
+  show(`<h2>Clear visits</h2>
+    <p class="empty" style="margin-top:0">Choose the day you want to clear. This removes every visit scheduled for that date, but does not delete invoices already created.</p>
+    <label for="clearVisitDate">Day to clear</label>
+    <input type="date" id="clearVisitDate" value="${todayKey}" required style="width:100%;margin:4px 0 12px">
+    <p id="clearVisitCount" class="empty" style="margin:0 0 12px"></p>
+    <div class="actions"><button class="btn" id="cancelClearVisits">Cancel</button><button class="btn danger" id="confirmClearVisits">Clear visits for this day</button></div>`);
+  const dateInput = $('#clearVisitDate');
+  const countEl = $('#clearVisitCount');
+  const confirmBtn = $('#confirmClearVisits');
+  const updateCount = () => {
+    const k = dateInput.value;
+    const count = k ? state.visits.filter(v => v.date === k).length : 0;
+    countEl.textContent = k ? `${count} visit${count === 1 ? '' : 's'} scheduled for ${fmtDay(parse(k))}.` : 'Choose a date.';
+    confirmBtn.disabled = !k || count === 0;
+    confirmBtn.textContent = count ? `Clear ${count} visit${count === 1 ? '' : 's'}` : 'Nothing to clear';
+  };
+  dateInput.onchange = updateCount;
+  updateCount();
+  $('#cancelClearVisits').onclick = close;
+  confirmBtn.onclick = () => {
+    const k = dateInput.value;
+    if(!k) return;
+    const matching = state.visits.filter(v => v.date === k);
+    if(!matching.length) return;
+    if(isLocked(k)) { alert('This week is locked. Unlock the week before clearing its visits.'); return; }
+    const dayLabel = fmtDay(parse(k));
+    if(!confirm(`Permanently clear all ${matching.length} visit${matching.length === 1 ? '' : 's'} on ${dayLabel}? Invoices already created will remain unchanged.`)) return;
+    const ids = new Set(matching.map(v => v.id));
+    state.visits = state.visits.filter(v => !ids.has(v.id));
+    save(); render(); close();
+  };
+}
 
 function openDay(k){
   const vs = visitsOn(k), lk = isLocked(k), d = parse(k);
