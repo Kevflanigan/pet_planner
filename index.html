@@ -63,6 +63,12 @@ textarea{min-height:60px;resize:vertical}
 dialog{border:0;border-radius:16px;padding:0;width:min(560px,94vw);max-height:92vh;box-shadow:0 20px 60px #0004}
 dialog::backdrop{background:#0a1a2099}
 .dlg{padding:20px}
+#archiveDock{position:fixed;z-index:1000;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 20%);display:flex;justify-content:center;pointer-events:none}
+#archiveOpen{pointer-events:auto;width:min(100%,1012px);min-height:48px;border:0;border-radius:12px;background:var(--brand-d);color:#fff;font-weight:700;box-shadow:0 4px 18px #0b2a4530}
+#dlg.archive-fullscreen{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;border-radius:0;overflow:auto}
+#dlg.archive-fullscreen .dlg{min-height:100%;padding:calc(20px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));max-width:900px;margin:0 auto}
+#dlg.archive-fullscreen .actions{position:sticky;bottom:0;background:var(--bg);padding:12px 0;margin-top:18px}
+body:has(#dlg.archive-fullscreen[open]) #archiveDock{display:none}
 .dlg h2{font-size:24px;margin-bottom:8px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:480px){.row{grid-template-columns:1fr}.day{min-height:64px;padding:3px 4px}.day .earn{font-size:12px}.grid{gap:3px}
@@ -209,6 +215,7 @@ header.top .wrap{padding:10px 14px}
 <div id="app"></div>
 
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<div id="archiveDock"><button id="archiveOpen" type="button">Archive / History</button></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -593,13 +600,15 @@ function restoreWeek(mk){
   save(); render(); openHistory();
 }
 function openHistory(){
+  dlg.classList.add('archive-fullscreen');
   const weeks = Object.keys(state.archived || {}).sort().reverse();
-  show(`<h2>History</h2><p class="empty" style="margin-top:0">Archived weeks. Tap a week to see its visits.</p>
+  show(`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px"><h2>Archive</h2><button class="btn" id="closeHistoryTop" type="button">Close</button></div><p class="empty" style="margin-top:0">Archived weeks. Tap a week to see its visits.</p>
     ${weeks.length ? weeks.map(mk => { const vs = weekVisits(mk), d = parse(mk);
       return `<button class="visit" style="width:100%;text-align:left;background:#fff" data-hw="${mk}"><div class="h"><span>${fmtDay(d)} to ${fmtDay(addDays(d, 6))}</span><span>${money(weekTotal(mk))}</span></div><small>${vs.length} visit${vs.length === 1 ? '' : 's'}</small></button>`; }).join('')
-      : '<p class="empty">No archived weeks yet. Lock a week, then press Archive.</p>'}
+      : '<p class="empty">No archived weeks yet. Weeks are moved here automatically once all invoices have been sent.</p>'}
     <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
   $('#x').onclick = close;
+  $('#closeHistoryTop').onclick = close;
   document.querySelectorAll('[data-hw]').forEach(b => b.onclick = () => openArchivedWeek(b.dataset.hw));
 }
 function openArchivedWeek(mk){
@@ -625,7 +634,7 @@ function renderWeeks(){
   el.removeAttribute('aria-busy');
   const todayMon = key(mondayOf(new Date()));
   const nArch = Object.keys(state.archived || {}).length;
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>Weekly Summary</h3><button class="btn" id="histBtn">History${nArch ? ' (' + nArch + ')' : ''}</button></div><p class="sub">Your next 4 weeks are shown below. Lock a week once it is final, then archive it to keep it in History.</p>`;
+  let html = `<h3>Weekly Summary</h3><p class="sub">Your next 4 weeks are shown below. Mark a week ready for invoicing when its visits are final. It moves to History automatically once all invoices have been sent.</p>`;
   let shown = 0;
   for(let i = 0; shown < 4 && i < 20; i++){
     const d = addDays(parse(todayMon), i*7), mk = key(d), end = addDays(d, 6);
@@ -635,8 +644,8 @@ function renderWeeks(){
     html += `<div class="wk${lk ? ' is-locked' : ''}" data-week="${mk}">
       <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b><div class="meta">${lk ? '<span class="status-locked">🔒 Locked</span>' : ''}<small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div></div>
       <div class="wk-actions">${lk
-        ? `<button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-send="${mk}">Send summary</button><button class="btn" data-archive="${mk}">Archive</button><button class="btn" data-unlock="${mk}">Unlock</button>`
-        : `<button class="btn primary" data-lock="${mk}">Lock week</button>`}</div>
+        ? `<button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-send="${mk}">Send summary</button><button class="btn" data-unlock="${mk}">Unlock</button>`
+        : `<button class="btn primary" data-lock="${mk}">Ready for invoice</button>`}</div>
     </div>`;
   }
   el.innerHTML = html;
@@ -649,15 +658,15 @@ function renderWeeks(){
   });
   document.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
   el.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
-  el.querySelectorAll('[data-archive]').forEach(b => b.onclick = () => archiveWeek(b.dataset.archive));
   el.querySelectorAll('[data-unlock]').forEach(b => b.onclick = () => unlockWeek(b.dataset.unlock));
-  $('#histBtn').onclick = openHistory;
 }
 
 /* ---------- dialogs ---------- */
 const dlg = $('#dlg');
 const show = html => { $('#dlgBody').innerHTML = html; if(!dlg.open) dlg.showModal(); };
-const close = () => dlg.close();
+const close = () => { dlg.close(); dlg.classList.remove('archive-fullscreen'); };
+dlg.addEventListener('close', () => dlg.classList.remove('archive-fullscreen'));
+$('#archiveOpen').onclick = openHistory;
 
 function toggleDone(id){ if(!canWrite()) return blocked(); const tv = state.visits.find(x => x.id === id); if(tv && isLocked(tv.date)){ alert('This week is locked.'); return; } state.visits = state.visits.map(v => v.id === id ? {...v, done:!v.done} : v); save(); }
 
@@ -939,6 +948,14 @@ function unlockArchived(mk){
   save(); if(sb){ clearTimeout(syncTimer); syncNow(); }
   render(); close(); toast('Week unlocked. Edit its visits from the calendar.');
 }
+function autoArchiveIfAllInvoicesSent(mk){
+  const rows = Object.values(state.invDb || {}).filter(r => r.week_start === mk);
+  if(!rows.length || !rows.every(r => r.status === 'sent' || r.status === 'paid')) return false;
+  if(isArchived(mk)) return true;
+  state.archived = {...(state.archived || {}), [mk]: new Date().toISOString()};
+  save();
+  return true;
+}
 async function runInvoiceFlow(mk, hs, terms){
   const bk = getBank(), acc = (bk.acc || '').replace(/\D/g, ''), sort = (bk.sort || '').replace(/\D/g, '');
   if(!/^\d{8}$/.test(acc) || !/^\d{6}$/.test(sort)){ toast('Enter an 8-digit account number and a 6-digit sort code first.', true); return; }
@@ -973,7 +990,9 @@ async function runInvoiceFlow(mk, hs, terms){
     else { r.cls = 'ok'; r.text = data.customer === 'already' ? 'Already sent earlier.' : data.owner === 'failed' ? 'Sent to client. Your copy failed.' : 'Invoice sent successfully! A copy is in your inbox.'; }
     paint('Sending invoices…');
   }
-  await loadInvoices(); render();
+  await loadInvoices();
+  if(!failed) autoArchiveIfAllInvoicesSent(mk);
+  render();
   paint(failed ? 'Finished with some issues' : 'All invoices sent', true);
   toast(failed ? failed + ' invoice(s) need attention.' : 'Invoices sent successfully!', !!failed);
 }
@@ -1110,6 +1129,7 @@ function showInvoice(inv, note){
       await loadInvoices();
       const fresh = Object.values(state.invDb).find(r => r.id === inv.id) || inv;
       const ok = !error && data && !data.error;
+      if(ok) autoArchiveIfAllInvoicesSent(inv.week_start);
       showInvoice(fresh, ok ? (data.customer === 'failed' ? 'The customer email failed. You can try again.' : data.owner === 'failed' ? 'Sent to the customer, but your owner copy failed. You can retry it.' : 'Invoice sent.') : 'Sorry, the invoice could not be sent. Please try again.');
       render();
     };
