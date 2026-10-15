@@ -202,6 +202,10 @@ header.top .wrap{padding:10px 14px}
 .wk .info .meta{display:flex;align-items:center;gap:10px;margin-top:5px}
 .wk .info .meta small{display:inline;margin:0}
 .status-locked{margin:0;white-space:nowrap}
+.wk-date-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wk-date-row>b{min-width:0}
+.wk-date-action{flex:none;padding:7px 10px;font-size:12px;white-space:nowrap;min-height:34px}
+.wk .info{min-width:0;flex:1}
 .wk.is-locked{padding-bottom:14px}
 .wk.is-locked .wk-actions{grid-template-columns:1fr 1fr;gap:8px}
 .wk.is-locked .wk-actions>.btn{grid-column:auto!important;grid-row:auto!important;width:100%;min-height:42px;padding:8px 6px;font-size:14px}
@@ -642,10 +646,10 @@ function renderWeeks(){
     shown++;
     const vs = weekVisits(mk), lk = !!state.locked[mk];
     html += `<div class="wk${lk ? ' is-locked' : ''}" data-week="${mk}">
-      <div class="info"><b>${fmtDay(d)} to ${fmtDay(end)}</b><div class="meta">${lk ? '<span class="status-locked">🔒 Locked</span>' : ''}<small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div></div>
-      <div class="wk-actions">${lk
-        ? `<button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-send="${mk}">Send summary</button><button class="btn" data-unlock="${mk}">Unlock</button>`
-        : `<button class="btn primary" data-lock="${mk}">Ready for invoice</button>`}</div>
+      <div class="info"><div class="wk-date-row"><b>${fmtDay(d)} to ${fmtDay(end)}</b>${lk
+        ? `<button class="btn wk-date-action" data-unlock="${mk}">Unlock</button>`
+        : `<button class="btn primary wk-date-action" data-lock="${mk}">Ready for invoice</button>`}</div><div class="meta">${lk ? '<span class="status-locked">🔒 Locked</span>' : ''}<small>${vs.length} visit${vs.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div></div>
+      ${lk ? `<div class="wk-actions"><button class="btn primary" data-inv="${mk}">Invoices</button><button class="btn" data-send="${mk}">Send summary</button></div>` : ''}
     </div>`;
   }
   el.innerHTML = html;
@@ -792,14 +796,21 @@ function summaryText(mk){
   const vs = weekVisits(mk), s = parse(mk), e = addDays(s,6), L = [];
   L.push(`Weekly visit summary: ${fmtDay(s)} to ${fmtDay(e)} ${e.getFullYear()}`, `Service: ${state.service}`, `Sitter: ${state.user}`,
     `Total visits: ${vs.length}`, `Total expected revenue: ${money(weekTotal(mk))}`, '');
-  let cur = '';
+  const clients = new Map();
   vs.forEach(v => {
-    if(v.date !== cur){ cur = v.date; L.push(fmtDay(parse(v.date)).toUpperCase()); }
-    L.push(`  ${v.time} ${v.name} · ${v.type}, ${money(visitPrice(v))}`,
-      `    Address: ${v.address}, ${v.postcode}`);
-    if(v.meds) L.push(`    Medication: ${v.meds}`);
-    if(v.notes) L.push(`    Instructions: ${v.notes}`);
-    L.push('');
+    const clientKey = (v.hemail || v.hname || 'unknown').toLowerCase();
+    if(!clients.has(clientKey)) clients.set(clientKey, {name:v.hname || 'Client', email:v.hemail || '', visits:[]});
+    clients.get(clientKey).visits.push(v);
+  });
+  [...clients.values()].sort((a,b) => a.name.localeCompare(b.name)).forEach(client => {
+    L.push(`${client.name}${client.email ? ' · ' + client.email : ''}`.toUpperCase());
+    client.visits.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).forEach(v => {
+      L.push(`  ${fmtDay(parse(v.date))} · ${v.time} · ${v.name} · ${v.type}, ${money(visitPrice(v))}`,
+        `    Address: ${v.address}, ${v.postcode}`);
+      if(v.meds) L.push(`    Medication: ${v.meds}`);
+      if(v.notes) L.push(`    Instructions: ${v.notes}`);
+      L.push('');
+    });
   });
   if(!vs.length) L.push('No visits booked this week.');
   return L.join('\n');
@@ -1005,12 +1016,15 @@ function openInvoices(mk){
     <div class="bankbox"><b>Payment details</b>
       <label for="bacc">Bank account number</label><input type="text" id="bacc" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 digits" value="${esc(getBank().acc)}">
       <label for="bsort">Sort code</label><input type="text" id="bsort" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="00-00-00" value="${esc(getBank().sort)}">
-      <label for="bpref">Invoice number prefix</label><input type="text" id="bpref" maxlength="12" autocomplete="off" placeholder="INV" value="${esc(state.invPrefix || '')}">
       <label for="bterm">Payment terms (days)</label><input type="number" id="bterm" min="0" max="365" value="7">
       <p class="empty" style="font-size:12px;margin:8px 0 0">Bank details are not stored permanently in the app database to protect user privacy and PII. They stay on this device and are only sent in the invoice email.</p></div>
+    <div class="bankbox"><b>Invoice settings</b>
+      <label for="bpref">Invoice number prefix</label><input type="text" id="bpref" maxlength="12" autocomplete="off" placeholder="INV" value="${esc(state.invPrefix || '')}">
+    </div>
     ${sb ? '<button class="btn primary" id="sendAll" style="width:100%;margin:4px 0 10px">Send invoices to clients</button>' : ''}
-    ${hs.map((h,i) => { const st = inv(mk,h.email); return `<div class="visit"><div class="h"><span>${esc(h.name)}</span><span>${money(sumPrice(h.visits))}</span></div>
+    ${hs.map((h,i) => { const st = inv(mk,h.email), dbInv = (state.invDb || {})[mk + '|' + h.email]; return `<div class="visit"><div class="h"><span>${esc(h.name)}</span><span>${money(sumPrice(h.visits))}</span></div>
       <small>${esc(h.email || 'No email saved for this household')} · ${h.visits.length} visit${h.visits.length===1?'':'s'}</small>
+      <small><b>Invoice number:</b> ${esc(dbInv ? dbInv.invoice_number : invNo(mk,h.email))}</small>
       <div style="margin:6px 0">${st.sent?'<span class="tag">Sent</span> ':''}${st.paid?'<span class="tag paid">Paid</span>':''}</div>
       <details><summary>View invoice</summary><div class="preview" style="margin-top:6px">${esc(invoiceText(mk,h))}</div></details>
       <div class="actions" style="margin-top:8px"><button class="btn" data-paid="${i}">${st.paid?'Mark unpaid':'Mark paid'}</button>
