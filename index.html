@@ -290,7 +290,7 @@ function households(mk){
   return Object.values(m);
 }
 const inv = (mk,e) => state.invoices[mk+'|'+e] || {};
-const invNo = (mk,e) => (state.invPrefix || 'INV') + '-' + mk.replace(/-/g,'') + '-' + String(Math.abs([...e].reduce((a,c) => (a*31 + c.charCodeAt(0))|0, 7)) % 1000).padStart(3,'0');
+const invNo = (mk,e) => 'INV-' + mk.replace(/-/g,'') + '-' + String(Math.abs([...e].reduce((a,c) => (a*31 + c.charCodeAt(0))|0, 7)) % 1000).padStart(3,'0');
 function invoiceText(mk,h){
   const s = parse(mk), e = addDays(s,6), L = [];
   L.push(`INVOICE ${invNo(mk,h.email)}`, state.service, `From: ${state.user}`, '', `To: ${h.name}${h.email ? ' <'+h.email+'>' : ''}`,
@@ -319,7 +319,7 @@ async function syncNow(){
     const gone = [...cloudIds].filter(id => !state.visits.some(v => v.id === id));
     if(gone.length){ const r = await sb.from('visits').delete().in('id', gone); if(r.error) throw r.error; }
     cloudIds = new Set(state.visits.map(v => v.id));
-    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:'', ...(state.hasArchiveCol ? {archived:state.archived || {}} : {}), ...(state.hasPrefixCol ? {invoice_prefix:state.invPrefix || null} : {}), updated_at:new Date().toISOString()});
+    const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:'', ...(state.hasArchiveCol ? {archived:state.archived || {}} : {}), updated_at:new Date().toISOString()});
     if(r2.error) throw r2.error;
     if(state.clearLocal){ localStorage.removeItem(state.importKey || ('petrounds:data:' + state.user)); state.clearLocal = false; }
     setSync('Saved');
@@ -335,9 +335,7 @@ async function loadCloud(){
   state.pay = (st.data && st.data.pay) || '';
   state.archived = (st.data && st.data.archived) || {};
   state.remind = st.data ? st.data.visit_reminders : true;
-  state.invPrefix = (st.data && st.data.invoice_prefix) || '';
   state.hasArchiveCol = !(await sb.from('settings').select('archived').limit(1)).error;
-  state.hasPrefixCol = !(await sb.from('settings').select('invoice_prefix').limit(1)).error;
   cloudIds = new Set(state.visits.map(x => x.id));
   try {
     const [en, sh, rf] = await Promise.all([sb.rpc('get_my_entitlement'), sb.rpc('get_my_share_info'), sb.from('referrals').select('status')]);
@@ -1063,45 +1061,78 @@ function openInvoices(mk){
   if(!state.locked[mk]){ state.locked[mk] = true; save(); render(); }
   const hs = households(mk), s = parse(mk), e = addDays(s,6);
   show(`<h2>Invoices: ${fmtDay(s)} to ${fmtDay(e)}</h2>
-    <p class="empty" style="margin-top:0">One invoice per household. Sending locks the week, creates each invoice, emails the client and sends you a copy.</p>
+    <p class="empty" style="margin-top:0">Review each client individually, check their details and invoice number, then send. The flow advances after each successful send.</p>
     <div class="bankbox"><b>Payment details</b>
       <label for="bacc">Bank account number</label><input type="text" id="bacc" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 digits" value="${esc(getBank().acc)}">
       <label for="bsort">Sort code</label><input type="text" id="bsort" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="00-00-00" value="${esc(getBank().sort)}">
       <label for="bterm">Payment terms (days)</label><input type="number" id="bterm" min="0" max="365" value="7">
-      <p class="empty" style="font-size:12px;margin:8px 0 0">Bank details are not stored permanently in the app database to protect user privacy and PII. They stay on this device and are only sent in the invoice email.</p></div>
-    <div class="bankbox"><b>Invoice settings</b>
-      <label for="bpref">Invoice number prefix</label><input type="text" id="bpref" maxlength="12" autocomplete="off" placeholder="INV" value="${esc(state.invPrefix || '')}">
-    </div>
-    ${sb ? '<button class="btn primary" id="sendAll" style="width:100%;margin:4px 0 10px">Send invoices to clients</button>' : ''}
-    ${hs.map((h,i) => { const st = inv(mk,h.email), dbInv = (state.invDb || {})[mk + '|' + h.email]; return `<div class="visit"><div class="h"><span>${esc(h.name)}</span><span>${money(sumPrice(h.visits))}</span></div>
-      <small>${esc(h.email || 'No email saved for this household')} · ${h.visits.length} visit${h.visits.length===1?'':'s'}</small>
-      <small><b>Invoice number:</b> ${esc(dbInv ? dbInv.invoice_number : invNo(mk,h.email))}</small>
-      <div style="margin:6px 0">${st.sent?'<span class="tag">Sent</span> ':''}${st.paid?'<span class="tag paid">Paid</span>':''}</div>
-      <details><summary>View invoice</summary><div class="preview" style="margin-top:6px">${esc(invoiceText(mk,h))}</div></details>
-      <div class="actions" style="margin-top:8px"><button class="btn" data-paid="${i}">${st.paid?'Mark unpaid':'Mark paid'}</button>
-      <button class="btn primary" data-mail="${i}" ${h.email?'':'disabled'}>${sb ? ((state.invDb || {})[mk + '|' + h.email] ? 'View invoice' : 'Create invoice') : (st.sent ? 'Resend invoice' : 'Email invoice')}</button></div></div>`; }).join('') || '<p class="empty">No visits this week.</p>'}
+      <p class="empty" style="font-size:12px;margin:8px 0 0">Bank details stay on this device and are only sent in the invoice email.</p></div>
+    <button class="btn primary" id="proceedClients" style="width:100%;margin:4px 0 10px">Proceed to Clients to Invoice</button>
     <div class="actions"><button class="btn" id="x">Close</button></div>`);
   $('#x').onclick = close;
   const keepBank = () => setBank({acc:$('#bacc').value.replace(/\D/g, ''), sort:$('#bsort').value.replace(/[^\d-]/g, '')});
   $('#bacc').oninput = keepBank; $('#bsort').oninput = keepBank;
-  $('#bpref').onchange = ev => {
-    const v = ev.target.value.trim();
-    if(!/^[A-Za-z0-9-]{0,12}$/.test(v)){ toast('Prefix can use letters, numbers and hyphens only.', true); ev.target.value = state.invPrefix || ''; return; }
-    if(sb && !state.hasPrefixCol){ toast('Run 08-invoicing.sql in Supabase to save a prefix.', true); return; }
-    state.invPrefix = v; save();
+  $('#proceedClients').onclick = () => {
+    keepBank();
+    const terms = parseInt($('#bterm').value,10);
+    if(!(terms >= 0 && terms <= 365)){ toast('Enter payment terms between 0 and 365 days.', true); return; }
+    const pending = hs.filter(h => h.email && !(state.mailLog || []).some(l => l.week_start===mk && l.customer_email===h.email && l.kind==='invoice_customer' && l.status==='sent'));
+    if(!pending.length){ show(`<h2>All clients reviewed</h2><p>There are no pending clients to invoice for this week.</p><div class="actions"><button class="btn primary" id="done">Close</button></div>`); $('#done').onclick=()=>{close();render();}; return; }
+    dlg.classList.add('archive-fullscreen');
+    reviewInvoiceClient(mk, pending, 0, terms);
   };
-  if($('#sendAll')) $('#sendAll').onclick = () => runInvoiceFlow(mk, hs, parseInt($('#bterm').value, 10));
-  document.querySelectorAll('[data-paid]').forEach(b => b.onclick = () => {
-    const h = hs[b.dataset.paid], k = mk+'|'+h.email;
-    state.invoices[k] = {...inv(mk,h.email), paid: !inv(mk,h.email).paid}; save(); render(); openInvoices(mk);
-  });
-  document.querySelectorAll('[data-mail]').forEach(b => b.onclick = () => {
-    const h = hs[b.dataset.mail];
-    if(sb) return openInvoiceDialog(mk, h);
-    state.invoices[mk+'|'+h.email] = {...inv(mk,h.email), sent:true}; save();
-    location.href = `mailto:${encodeURIComponent(h.email)}?subject=${encodeURIComponent(state.service + ' invoice ' + invNo(mk,h.email))}&body=${encodeURIComponent(invoiceText(mk,h))}`;
-    setTimeout(() => { render(); openInvoices(mk); }, 300);
-  });
+}
+
+async function reviewInvoiceClient(mk, clients, index, terms){
+  if(index >= clients.length){
+    await loadInvoices(); autoArchiveIfAllInvoicesSent(mk); render();
+    show(`<div style="max-width:760px;margin:0 auto"><h2>Invoicing complete</h2><p>All clients in this review have been processed.</p><div class="actions"><button class="btn primary" id="finishReview">Finish</button></div></div>`);
+    $('#finishReview').onclick=()=>{close();render();}; return;
+  }
+  const h=clients[index], keyInv=mk+'|'+h.email;
+  const existing=(state.invDb||{})[keyInv];
+  const number=existing?.invoice_number || invNo(mk,h.email);
+  const visits=[...h.visits].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  show(`<div style="max-width:760px;margin:0 auto"><p class="empty">Client ${index+1} of ${clients.length}</p><h2>Review invoice</h2>
+    <div class="bankbox"><b>Client details</b><p><b>${esc(h.name)}</b></p><p>${esc(h.email||'No email address')}</p><p>${visits.length} visit${visits.length===1?'':'s'} · <b>${money(sumPrice(visits))}</b></p></div>
+    <label for="reviewInvNo">Invoice number</label><input id="reviewInvNo" type="text" maxlength="80" value="${esc(number)}" autocomplete="off" required>
+    <div class="preview" style="white-space:normal"><b>Visits included</b><table style="margin:8px 0"><tr><th>Date</th><th>Pet / service</th><th>Amount</th></tr>${visits.map(v=>`<tr><td>${fmtDay(parse(v.date))} ${esc(v.time)}</td><td>${esc(v.name)} · ${esc(v.type)}</td><td>${money(visitPrice(v))}</td></tr>`).join('')}</table><p><b>Total: ${money(sumPrice(visits))}</b></p><p>Payment terms: ${terms} days</p><p>Bank account: ${esc(getBank().acc || 'Not entered')}<br>Sort code: ${esc(getBank().sort || 'Not entered')}</p></div>
+    <div class="msg" id="reviewMsg"></div><div class="actions"><button class="btn" id="reviewCancel">Cancel</button><button class="btn primary" id="invoiceClient">Invoice Client</button></div></div>`);
+  $('#reviewCancel').onclick=()=>{close();render();};
+  $('#invoiceClient').onclick=async()=>{
+    const b=$('#invoiceClient'), msg=$('#reviewMsg'), customNo=$('#reviewInvNo').value.trim();
+    if(!customNo){msg.textContent='Enter an invoice number before continuing.';return;}
+    if(!h.email){msg.textContent='This client has no email address saved.';return;}
+    b.disabled=true;b.textContent='Preparing invoice…';msg.textContent='';
+    try{
+      let invoice=(state.invDb||{})[keyInv];
+      if(!invoice){
+        const {error}=await sb.rpc('create_invoice',{p_week:mk,p_customer_email:h.email,p_terms:terms});
+        await loadInvoices(); invoice=(state.invDb||{})[keyInv];
+        if(!invoice && error) throw error;
+      }
+      if(sb && !invoice) throw new Error('Could not create invoice.');
+      if(invoice && invoice.invoice_number!==customNo){
+        const {error:updateError}=await sb.from('invoices').update({invoice_number:customNo}).eq('id',invoice.id);
+        if(updateError) throw new Error('Invoice number could not be saved. Check that your Supabase invoice update policy allows this change.');
+        await loadInvoices(); invoice=(state.invDb||{})[keyInv]||invoice;
+      }
+      if(sb){
+        b.textContent='Sending invoice…';
+        const {data,error}=await sb.functions.invoke('send-invoice',{body:{invoice_id:invoice.id,bank:{account:getBank().acc,sort_code:getBank().sort}}});
+        await loadInvoices();
+        if(error||!data||data.error||data.customer==='failed') throw new Error('The invoice could not be sent. You can retry this client from the invoice list.');
+        const logs=state.mailLog||[];
+        const sent=logs.some(l=>l.invoice_id===invoice.id&&l.kind==='invoice_customer'&&l.status==='sent');
+        if(!sent && data.customer!=='already') throw new Error('The send status could not be confirmed.');
+      } else {
+        state.invoices[keyInv]={...inv(mk,h.email),sent:true,invoice_number:customNo};save();
+        location.href=`mailto:${encodeURIComponent(h.email)}?subject=${encodeURIComponent(state.service+' invoice '+customNo)}&body=${encodeURIComponent(invoiceText(mk,h).replace(invNo(mk,h.email),customNo))}`;
+      }
+      await loadInvoices();
+      reviewInvoiceClient(mk,clients,index+1,terms);
+    }catch(err){b.disabled=false;b.textContent='Invoice Client';msg.textContent=err?.message||'Could not invoice this client. Please try again.';}
+  };
 }
 
 function openContact(){
