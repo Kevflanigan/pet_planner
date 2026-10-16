@@ -144,7 +144,9 @@ header.top{background:var(--brand-d);position:relative;z-index:120}
 header.top .wrap{padding:10px 14px}
 .logo{font-size:17px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0}
 .session{position:relative;flex:none}
-.avatar{width:38px;height:38px;border-radius:50%;border:2px solid #ffffff66;background:#fff;color:var(--brand-d);font-weight:700;font-size:14px;padding:0}
+.avatar{width:42px;height:38px;border-radius:10px;border:1px solid #ffffff66;background:transparent;color:#fff;font-weight:700;font-size:24px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.avatar:hover{background:#ffffff18}
+.avatar svg{display:block}
 .menu{position:absolute;right:0;top:46px;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:12px;min-width:220px;box-shadow:0 12px 30px #0b2b4c33;z-index:200}
 .menu[hidden]{display:none}
 .menu .who{margin-bottom:10px;line-height:1.3}
@@ -467,7 +469,7 @@ function render(){
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
   app.innerHTML = `
   <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
-    <div class="session"><button type="button" class="btn" id="logoutTop">Log out</button><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">${esc(initials())}</button>
+    <div class="session"><button type="button" class="btn" id="logoutTop">Log out</button><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Open menu"><svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><div><button type="button" class="mi" data-mi="run">Today's run sheet</button><button type="button" class="mi" data-mi="invlist">Invoices</button><button type="button" class="mi" data-mi="earn">Earnings</button><button type="button" class="mi" data-mi="xvis">Export visits (CSV)</button><button type="button" class="mi" data-mi="xinv">Export invoices (CSV)</button><label class="mi-check"><input type="checkbox" id="remToggle"> Evening visit reminder email</label></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
   <main class="wrap">
     <div class="schedule-sticky" aria-label="Schedule controls">
@@ -575,7 +577,6 @@ function monthHtml(m){
     const cls = ['day', [0,6].includes(wd)?'we':'', k<todayKey?'past':'', k===todayKey?'today':'', isLocked(k)?'locked':''].join(' ');
     cells += `<button class="${cls}" data-k="${k}" aria-label="${fmtDay(parse(k))}, ${vs.length} visits, ${money(t)}${isLocked(k)?', week locked':''}">
       <span class="n">${d}${isLocked(k)?' 🔒':''}</span>
-      <span class="pets">${vs.slice(0,6).map(v=>`<i class="pip ${v.type}${v.done?' done':''}"></i>`).join('')}</span>
       ${t ? `<span class="earn">${money(t)}</span>` : ''}</button>`;
   }
   return `<section class="month"><h3>${MONTHS[mo]} ${y} ${total ? `<small style="font:500 15px Figtree;color:var(--mute)">${money(total)} booked</small>` : ''}</h3><div class="grid">${cells}</div></section>`;
