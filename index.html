@@ -63,8 +63,10 @@ textarea{min-height:60px;resize:vertical}
 dialog{border:0;border-radius:16px;padding:0;width:min(560px,94vw);max-height:92vh;box-shadow:0 20px 60px #0004}
 dialog::backdrop{background:#0a1a2099}
 .dlg{padding:20px}
-#archiveDock{position:fixed;z-index:1000;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 20%);display:flex;justify-content:center;pointer-events:none}
-#archiveOpen{pointer-events:auto;width:min(100%,1012px);min-height:48px;border:0;border-radius:12px;background:var(--brand-d);color:#fff;font-weight:700;box-shadow:0 4px 18px #0b2a4530}
+#archiveDock{position:fixed;z-index:1000;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 20%);display:flex;justify-content:center;gap:10px;pointer-events:none}
+#archiveDock button{pointer-events:auto;flex:1;min-width:0;max-width:501px;min-height:48px;border:0;border-radius:12px;color:#fff;font-weight:700;box-shadow:0 4px 18px #0b2a4530}
+#archiveOpen{background:var(--brand-d)}
+#logoutBottom{background:#fff;color:var(--brand-d)!important;border:1px solid var(--brand-d)!important;box-shadow:none!important}
 #dlg.archive-fullscreen{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;border-radius:0;overflow:auto}
 #dlg.archive-fullscreen .dlg{min-height:100%;padding:calc(20px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));max-width:900px;margin:0 auto}
 #dlg.archive-fullscreen .actions{position:sticky;bottom:0;background:var(--bg);padding:12px 0;margin-top:18px}
@@ -182,7 +184,6 @@ header.top .wrap{padding:10px 14px}
 .wk.is-locked .wk-actions .btn{width:100%;padding:9px 4px;font-size:14px;white-space:nowrap}
 .status-locked{display:inline-block;margin:3px 0;padding:2px 10px;border-radius:999px;background:#E6EBE8;color:#7A8892;font-size:12px;font-weight:600}
 .session{display:flex;align-items:center;gap:8px}
-#logoutTop{padding:7px 14px;background:#fff;color:var(--brand-d);border-color:#fff;font-weight:700;font-size:14px}
 .wscroll{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .wnav{flex:none;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--brand-d);background:#fff;color:var(--brand-d);font-size:18px;padding:0}
 .wstrip{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scroll-behavior:smooth;scrollbar-width:none;flex:1;padding:2px}
@@ -221,7 +222,7 @@ header.top .wrap{padding:10px 14px}
 <div id="app"></div>
 
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
-<div id="archiveDock"><button id="archiveOpen" type="button">Archive / History</button></div>
+<div id="archiveDock"><button id="archiveOpen" type="button">Archive / History</button><button id="logoutBottom" type="button">Log out</button></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -469,8 +470,8 @@ function render(){
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
   app.innerHTML = `
   <header class="top"><div class="wrap"><button type="button" class="accountBtn" id="accountBtn" aria-label="Account" title="Account"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.6-4 3.2-6 7.5-6s6.9 2 7.5 6"/></svg></button><div class="logo">${esc(state.service)}</div>
-    <div class="session"><button type="button" class="btn" id="logoutTop">Log out</button><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Open menu"><svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><div><button type="button" class="mi" data-mi="run">Today's visit schedule</button><button type="button" class="mi" data-mi="invlist">Invoices</button><button type="button" class="mi" data-mi="earn">Earnings</button><button type="button" class="mi" data-mi="xvis">Export visits (CSV)</button><button type="button" class="mi" data-mi="xinv">Export invoices (CSV)</button><label class="mi-check"><input type="checkbox" id="remToggle"> Evening visit reminder email</label></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
+    <div class="session"><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Open menu"><svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><div><button type="button" class="mi" data-mi="run">Today's visit schedule</button><button type="button" class="mi" data-mi="invlist">Invoices</button><button type="button" class="mi" data-mi="earn">Earnings</button><button type="button" class="mi" data-mi="xvis">Export visits (CSV)</button><button type="button" class="mi" data-mi="xinv">Export invoices (CSV)</button><label class="mi-check"><input type="checkbox" id="remToggle"> Evening visit reminder email</label></div></div></div></div></header>
   <main class="wrap">
     <div class="schedule-sticky" aria-label="Schedule controls">
       <div class="schedule-actions">
@@ -519,7 +520,7 @@ function render(){
     state = {user:null, uid:null, profile:null, authView:'login', pendingEmail:'', loading:false, cloudReady:false, service:DEFAULT_SERVICE, visits:[], locked:{}, invoices:{}, pay:'', offset:0};
     render();
   };
-  $('#logout').onclick = doLogout; $('#logoutTop').onclick = doLogout;
+  $('#logoutBottom').onclick = doLogout;
   $('#add').onclick = () => openAdd(todayKey);
   $('#editVisits').onclick = openEditList;
   $('#clearVisits').onclick = openClearVisits;
