@@ -140,7 +140,7 @@ body.authpage{background:var(--cream)}
 body,h1,h2,h3,.logo,.day .earn{font-family:Figtree,system-ui,sans-serif}
 h1,h2,h3{font-weight:700}
 .btn{border-radius:999px}
-header.top{background:var(--brand-d);position:relative;z-index:120}
+header.top{background:var(--brand-d);position:sticky;top:0;z-index:120}
 header.top .wrap{padding:10px 14px}
 .logo{font-size:17px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0}
 .session{position:relative;flex:none}
@@ -213,7 +213,7 @@ header.top .wrap{padding:10px 14px}
 .wk.is-locked .wk-actions>.btn{grid-column:auto!important;grid-row:auto!important;width:100%;min-height:42px;padding:8px 6px;font-size:14px}
 .menu{min-width:260px}
 .mi{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 4px;font-size:15px;color:var(--ink);border-radius:0}
-.mi-check{display:flex;gap:8px;align-items:center;padding:11px 4px;font-size:14px;color:var(--ink);margin:0 0 6px;font-weight:500}
+.mi-check{display:flex;gap:8px;align-items:center;padding:11px 4px;font-size:14px;color:var(--ink);margin:0 0 6px;font-weight:500}.accountBtn{width:36px;height:36px;flex:none;border:0;border-radius:50%;background:#fff;color:#000;display:inline-flex;align-items:center;justify-content:center;padding:0}.accountBtn svg{width:22px;height:22px;stroke:#000}.invoice-compact label{margin:7px 0 3px}.invoice-compact input{padding:7px 9px}.invoice-compact .bankbox{padding:9px;margin:6px 0}.invoice-compact .preview{max-height:35vh}.invoice-compact .actions{margin-top:9px}.inv-number-wrap{display:flex;gap:7px;align-items:center}.inv-number-wrap input{flex:1;min-width:0}.edit-indicator{width:38px;height:38px;flex:none;border:1px solid var(--line);border-radius:9px;background:#fff;display:grid;place-items:center}
 .st-overdue{color:var(--warn)}.st-paid{color:var(--brand)}
 </style>
 </head>
@@ -468,9 +468,9 @@ function render(){
   const now = new Date(), first = new Date(now.getFullYear(), now.getMonth()+state.offset, 1);
   const months = [0,1,2].map(i => new Date(first.getFullYear(), first.getMonth()+i, 1));
   app.innerHTML = `
-  <header class="top"><div class="wrap"><div class="logo">${esc(state.service)}</div>
+  <header class="top"><div class="wrap"><button type="button" class="accountBtn" id="accountBtn" aria-label="Account" title="Account"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.6-4 3.2-6 7.5-6s6.9 2 7.5 6"/></svg></button><div class="logo">${esc(state.service)}</div>
     <div class="session"><button type="button" class="btn" id="logoutTop">Log out</button><button type="button" class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" aria-label="Open menu"><svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><div><button type="button" class="mi" data-mi="run">Today's run sheet</button><button type="button" class="mi" data-mi="invlist">Invoices</button><button type="button" class="mi" data-mi="earn">Earnings</button><button type="button" class="mi" data-mi="xvis">Export visits (CSV)</button><button type="button" class="mi" data-mi="xinv">Export invoices (CSV)</button><label class="mi-check"><input type="checkbox" id="remToggle"> Evening visit reminder email</label></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
+      <div class="menu" id="acctMenu" hidden><div class="who"><b>${esc(displayName())}</b><small>${esc(state.user)}</small></div><div><button type="button" class="mi" data-mi="run">Today's visit schedule</button><button type="button" class="mi" data-mi="invlist">Invoices</button><button type="button" class="mi" data-mi="earn">Earnings</button><button type="button" class="mi" data-mi="xvis">Export visits (CSV)</button><button type="button" class="mi" data-mi="xinv">Export invoices (CSV)</button><label class="mi-check"><input type="checkbox" id="remToggle"> Evening visit reminder email</label></div><button type="button" class="btn" id="logout">Log out</button></div></div></div></header>
   <main class="wrap">
     <div class="schedule-sticky" aria-label="Schedule controls">
       <div class="schedule-actions">
@@ -498,6 +498,7 @@ function render(){
     <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
   $('#avatarBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#avatarBtn').setAttribute('aria-expanded', String(!m.hidden)); };
+  $('#accountBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; };
   const goto = {run: () => openRun(todayKey), invlist: openInvoiceList, earn: openEarnings, xvis: exportVisits, xinv: exportInvoices};
   document.querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { $('#acctMenu').hidden = true; goto[b.dataset.mi](); });
   const rt = $('#remToggle');
@@ -668,7 +669,7 @@ function renderWeeks(){
 
 /* ---------- dialogs ---------- */
 const dlg = $('#dlg');
-const show = html => { $('#dlgBody').innerHTML = html; if(!dlg.open) dlg.showModal(); };
+const show = html => { $('#dlgBody').innerHTML = html; $('#dlgBody').classList.toggle('invoice-compact', /Invoices:|Review invoice|Invoice number|Create invoice|Sending invoices|Invoicing complete/.test(html)); $('#dlgBody').scrollTop = 0; if(!dlg.open) dlg.showModal(); };
 const close = () => { dlg.close(); dlg.classList.remove('archive-fullscreen'); };
 dlg.addEventListener('close', () => dlg.classList.remove('archive-fullscreen'));
 $('#archiveOpen').onclick = openHistory;
@@ -759,10 +760,11 @@ function openAdd(k, ed){
     <datalist id="hh">${[...new Map(state.visits.filter(v=>v.hemail).map(v=>[v.hemail,v])).values()].map(v=>`<option value="${esc(v.hemail)}">${esc(v.hname)}</option>`).join('')}</datalist>
     <label>Pet type</label><div class="choices">
       <label><input type="radio" name="type" value="Dog" checked><span>🐕 Dog</span></label>
-      <label><input type="radio" name="type" value="Cat"><span>🐈 Cat</span></label></div>
+      <label><input type="radio" name="type" value="Cat"><span>🐈 Cat</span></label>
+      <label><input type="radio" name="type" value="Other"><span><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:middle;stroke:#000;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 13c-2-2-3-7-1-9 2-1 4 3 5 6 1-4 3-7 5-6 2 2 1 7-1 9 3 1 4 3 4 5 0 3-3 4-7 4s-7-1-7-4c0-2 1-4 2-5z"/></svg> Other</span></label></div>
     <div class="row"><div><label for="f-addr">Address</label><input type="text" id="f-addr" required></div>
     <div><label for="f-pc">Postcode</label><input type="text" id="f-pc" required autocapitalize="characters"></div></div>
-    <label>Time slot</label><div class="choices">${Object.keys(SLOTS).map((s,i)=>`<label><input type="radio" name="slot" value="${s}" ${i===0?'checked':''}><span>${s}</span></label>`).join('')}</div>
+    <label>Visit time slots (select all that apply)</label><div class="choices">${Object.keys(SLOTS).map((s,i)=>`<label><input type="checkbox" name="slot" value="${s}" ${i===0?'checked':''}><span>${s}</span></label>`).join('')}</div>
     <label for="f-price">Price for this visit (£)</label><input type="number" id="f-price" min="0" step="0.5" inputmode="decimal" required>
     <p class="empty" id="priceHint" style="margin:4px 0 0;font-size:13px"></p>
     <label for="f-time">Exact time</label><input type="time" id="f-time" value="08:00" required>
@@ -788,7 +790,7 @@ function openAdd(k, ed){
   $('#f-price').oninput = () => { priceEdited = true; };
   $('#f-date').onchange = syncPrice;
   syncPrice();
-  f.querySelectorAll('[name=slot]').forEach(r => r.onchange = () => $('#f-time').value = SLOTS[r.value]);
+  f.querySelectorAll('[name=slot]').forEach(r => r.onchange = () => { const selected=[...f.querySelectorAll('[name=slot]:checked')].map(x=>x.value); if(selected.length) $('#f-time').value=SLOTS[selected[0]]; });
   $('#f-time').onchange = e => {
     const h = +e.target.value.slice(0,2), s = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
     f.querySelector(`[name=slot][value=${s}]`).checked = true;
@@ -800,7 +802,8 @@ function openAdd(k, ed){
     set('f-time',v.time || '08:00'); set('f-food',v.food); set('f-meds',v.meds); set('f-vet',v.vet); set('f-notes',v.notes);
     if(withDate) set('f-date',v.date);
     f.querySelector(`[name=type][value=${v.type || 'Dog'}]`).checked = true;
-    f.querySelector(`[name=slot][value=${v.slot || 'Morning'}]`).checked = true;
+    const selectedSlots = Array.isArray(v.slots) ? v.slots : String(v.slot || 'Morning').split(',').map(x=>x.trim());
+    f.querySelectorAll('[name=slot]').forEach(el => el.checked = selectedSlots.includes(el.value));
     $('#f-acc').value = v.access || ACCESS[0]; $('#kcWrap').hidden = !$('#f-acc').value.startsWith('Key safe'); set('f-kc',v.keycode);
     if(typeof v.price === 'number'){ set('f-price',v.price); priceEdited = true; }
     syncPrice();
@@ -814,10 +817,12 @@ function openAdd(k, ed){
     const price = parseFloat($('#f-price').value);
     if(!(price >= 0)){ $('#fm').textContent = 'Enter a price of £0 or more.'; return; }
     if(isLocked(date)){ $('#fm').textContent = 'That week is locked. Unlock it to add visits.'; return; }
+    const selectedSlots = [...f.querySelectorAll('[name=slot]:checked')].map(el=>el.value);
+    if(!selectedSlots.length){ $('#fm').textContent = 'Select at least one visit time slot.'; return; }
     const base = {
       price: Math.round(price*100)/100,
       vet: $('#f-vet').value.trim(), hname: $('#f-hn').value.trim(), hemail: $('#f-he').value.trim().toLowerCase(), name: $('#f-name').value.trim(), type: f.type.value, address: $('#f-addr').value.trim(),
-      postcode: $('#f-pc').value.trim().toUpperCase(), slot: f.slot.value, time: $('#f-time').value,
+      postcode: $('#f-pc').value.trim().toUpperCase(), slots: selectedSlots, slot: selectedSlots.join(', '), time: $('#f-time').value,
       food: $('#f-food').value.trim(), meds: $('#f-meds').value.trim(), notes: $('#f-notes').value.trim(),
       access: $('#f-acc').value, keycode: $('#f-acc').value.startsWith('Key safe') ? $('#f-kc').value.trim() : ''
     };
@@ -1047,7 +1052,7 @@ async function runInvoiceFlow(mk, hs, terms){
     if(!invoice){ r.cls = 'bad'; r.text = 'Could not create the invoice.'; failed++; paint('Sending invoices…'); continue; }
     r.text = 'Sending invoice to client…'; paint('Sending invoices…');
     const { data, error } = await sb.functions.invoke('send-invoice', { body: { invoice_id: invoice.id, bank: { account: acc, sort_code: sort } } });
-    if(error || !data || data.error || data.customer === 'failed'){ r.cls = 'bad'; r.text = 'Could not send. You can try again.'; failed++; }
+    if(error || !data || data.error || data.customer === 'failed'){ r.cls = 'bad'; r.text = 'Could not send: ' + (error?.message || data?.error || 'email delivery was not confirmed') + '. You can try again.'; failed++; }
     else { r.cls = 'ok'; r.text = data.customer === 'already' ? 'Already sent earlier.' : data.owner === 'failed' ? 'Sent to client. Your copy failed.' : 'Invoice sent successfully! A copy is in your inbox.'; }
     paint('Sending invoices…');
   }
@@ -1096,7 +1101,7 @@ async function reviewInvoiceClient(mk, clients, index, terms){
   const visits=[...h.visits].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
   show(`<div style="max-width:760px;margin:0 auto"><p class="empty">Client ${index+1} of ${clients.length}</p><h2>Review invoice</h2>
     <div class="bankbox"><b>Client details</b><p><b>${esc(h.name)}</b></p><p>${esc(h.email||'No email address')}</p><p>${visits.length} visit${visits.length===1?'':'s'} · <b>${money(sumPrice(visits))}</b></p></div>
-    <label for="reviewInvNo">Invoice number</label><input id="reviewInvNo" type="text" maxlength="80" value="${esc(number)}" autocomplete="off" required>
+    <label for="reviewInvNo">Invoice number</label><div class="inv-number-wrap"><input id="reviewInvNo" type="text" maxlength="80" value="${esc(number)}" autocomplete="off" required><span class="edit-indicator" title="Editable invoice number" aria-label="Invoice number is editable"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></span></div>
     <div class="preview" style="white-space:normal"><b>Visits included</b><table style="margin:8px 0"><tr><th>Date</th><th>Pet / service</th><th>Amount</th></tr>${visits.map(v=>`<tr><td>${fmtDay(parse(v.date))} ${esc(v.time)}</td><td>${esc(v.name)} · ${esc(v.type)}</td><td>${money(visitPrice(v))}</td></tr>`).join('')}</table><p><b>Total: ${money(sumPrice(visits))}</b></p><p>Payment terms: ${terms} days</p><p>Bank account: ${esc(getBank().acc || 'Not entered')}<br>Sort code: ${esc(getBank().sort || 'Not entered')}</p></div>
     <div class="msg" id="reviewMsg"></div><div class="actions"><button class="btn" id="reviewCancel">Cancel</button><button class="btn primary" id="invoiceClient">Invoice Client</button></div></div>`);
   $('#reviewCancel').onclick=()=>{close();render();};
@@ -1122,7 +1127,7 @@ async function reviewInvoiceClient(mk, clients, index, terms){
         b.textContent='Sending invoice…';
         const {data,error}=await sb.functions.invoke('send-invoice',{body:{invoice_id:invoice.id,bank:{account:getBank().acc,sort_code:getBank().sort}}});
         await loadInvoices();
-        if(error||!data||data.error||data.customer==='failed') throw new Error('The invoice could not be sent. You can retry this client from the invoice list.');
+        if(error||!data||data.error||data.customer==='failed') throw new Error('Invoice delivery failed: '+(error?.message||data?.error||'the email service did not confirm delivery')+'. You can retry this client from the invoice list.');
         const logs=state.mailLog||[];
         const sent=logs.some(l=>l.invoice_id===invoice.id&&l.kind==='invoice_customer'&&l.status==='sent');
         if(!sent && data.customer!=='already') throw new Error('The send status could not be confirmed.');
