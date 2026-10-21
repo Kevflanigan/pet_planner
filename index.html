@@ -1098,17 +1098,17 @@ async function reviewInvoiceClient(mk, clients, index, terms){
   }
   const h=clients[index], keyInv=mk+'|'+h.email;
   const existing=(state.invDb||{})[keyInv];
-  const number=existing?.invoice_number || invNo(mk,h.email);
+  const number=existing?.invoice_number || (sb ? '' : invNo(mk,h.email));
   const visits=[...h.visits].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
   show(`<div style="max-width:760px;margin:0 auto"><p class="empty">Client ${index+1} of ${clients.length}</p><h2>Review invoice</h2>
     <div class="bankbox"><b>Client details</b><p><b>${esc(h.name)}</b></p><p>${esc(h.email||'No email address')}</p><p>${visits.length} visit${visits.length===1?'':'s'} · <b>${money(sumPrice(visits))}</b></p></div>
-    <label for="reviewInvNo">Invoice number</label><div class="inv-number-wrap"><input id="reviewInvNo" type="text" maxlength="80" value="${esc(number)}" autocomplete="off" required><span class="edit-indicator" title="Editable invoice number" aria-label="Invoice number is editable"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></span></div>
+    <label for="reviewInvNo">Invoice number</label><div class="inv-number-wrap"><input id="reviewInvNo" type="text" maxlength="40" value="${esc(number)}" placeholder="Automatic (for example INV-2026-0001)" autocomplete="off"><span class="edit-indicator" title="Editable invoice number" aria-label="Invoice number is editable"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></span></div>
     <div class="preview" style="white-space:normal"><b>Visits included</b><table style="margin:8px 0"><tr><th>Date</th><th>Pet / service</th><th>Amount</th></tr>${visits.map(v=>`<tr><td>${fmtDay(parse(v.date))} ${esc(v.time)}</td><td>${esc(v.name)} · ${esc(v.type)}</td><td>${money(visitPrice(v))}</td></tr>`).join('')}</table><p><b>Total: ${money(sumPrice(visits))}</b></p><p>Payment terms: ${terms} days</p><p>Bank account: ${esc(getBank().acc || 'Not entered')}<br>Sort code: ${esc(getBank().sort || 'Not entered')}</p></div>
     <div class="msg" id="reviewMsg"></div><div class="actions"><button class="btn" id="reviewCancel">Cancel</button><button class="btn primary" id="invoiceClient">Invoice Client</button></div></div>`);
   $('#reviewCancel').onclick=()=>{close();render();};
   $('#invoiceClient').onclick=async()=>{
     const b=$('#invoiceClient'), msg=$('#reviewMsg'), customNo=$('#reviewInvNo').value.trim();
-    if(!customNo){msg.textContent='Enter an invoice number before continuing.';return;}
+    if(!customNo && !sb){msg.textContent='Enter an invoice number before continuing.';return;}
     if(!h.email){msg.textContent='This client has no email address saved.';return;}
     b.disabled=true;b.textContent='Preparing invoice…';msg.textContent='';
     try{
@@ -1119,9 +1119,15 @@ async function reviewInvoiceClient(mk, clients, index, terms){
         if(!invoice && error) throw error;
       }
       if(sb && !invoice) throw new Error('Could not create invoice.');
-      if(invoice && invoice.invoice_number!==customNo){
-        const {error:updateError}=await sb.from('invoices').update({invoice_number:customNo}).eq('id',invoice.id);
-        if(updateError) throw new Error('Invoice number could not be saved. Check that your Supabase invoice update policy allows this change.');
+      if(sb && customNo && invoice.invoice_number!==customNo){
+        const {error:numErr}=await sb.rpc('set_invoice_number',{p_id:invoice.id,p_number:customNo});
+        if(numErr){
+          const m=numErr.message||'';
+          throw new Error(/NUMBER_IN_USE/.test(m) ? 'That invoice number is already used. Choose another, or leave it blank for automatic numbering.'
+            : /INVALID_NUMBER/.test(m) ? 'Use letters, numbers, spaces and - _ / . only (up to 40 characters).'
+            : /NOT_EDITABLE/.test(m) ? 'This invoice has already been sent, so its number can no longer be changed.'
+            : 'The invoice number could not be saved. Run 11-invoice-number.sql in Supabase.');
+        }
         await loadInvoices(); invoice=(state.invDb||{})[keyInv]||invoice;
       }
       if(sb){
