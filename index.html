@@ -320,6 +320,14 @@ function setSync(t, err){ state.sync = t; state.syncErr = !!err; const el = $('#
 function queueSync(){ clearTimeout(syncTimer); setSync('Saving…'); syncTimer = setTimeout(syncNow, 500); }
 async function syncNow(){
   try {
+    // 1. Save UNLOCKS first, so visits in a week that was just unlocked can be written
+    const cl = state.cloudLocked || {};
+    if(Object.keys(cl).some(k => !state.locked[k])){
+      const keep = {}; Object.keys(cl).forEach(k => { if(state.locked[k]) keep[k] = true; });
+      const r0 = await sb.from('settings').upsert({user_id:state.uid, locked:keep, updated_at:new Date().toISOString()});
+      if(r0.error) throw r0.error;
+      state.cloudLocked = keep;
+    }
     const rows = state.visits.map(toRow);
     if(rows.length){ const r = await sb.from('visits').upsert(rows); if(r.error) throw r.error; }
     const gone = [...cloudIds].filter(id => !state.visits.some(v => v.id === id));
@@ -328,6 +336,7 @@ async function syncNow(){
     const r2 = await sb.from('settings').upsert({user_id:state.uid, locked:state.locked, invoices:state.invoices, pay:'', ...(state.hasArchiveCol ? {archived:state.archived || {}} : {}), updated_at:new Date().toISOString()});
     if(r2.error) throw r2.error;
     if(state.clearLocal){ localStorage.removeItem(state.importKey || ('petrounds:data:' + state.user)); state.clearLocal = false; }
+    state.cloudLocked = {...state.locked};
     setSync('Saved');
   } catch(e){ console.error('sync failed', e); state.syncDetail = (e && (e.message || e.details)) || String(e); setSync('Not saved. Check your connection.', true); }
 }
@@ -337,6 +346,7 @@ async function loadCloud(){
   if(st.error) throw st.error;
   state.visits = v.data.map(r => ({...r, price: r.price == null ? undefined : Number(r.price)}));
   state.locked = (st.data && st.data.locked) || {};
+  state.cloudLocked = {...state.locked};
   state.invoices = (st.data && st.data.invoices) || {};
   state.pay = (st.data && st.data.pay) || '';
   state.archived = (st.data && st.data.archived) || {};
