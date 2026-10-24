@@ -216,6 +216,9 @@ header.top .wrap{padding:10px 14px}
 .mi{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:11px 4px;font-size:15px;color:var(--ink);border-radius:0}
 .mi-check{display:flex;gap:8px;align-items:center;padding:11px 4px;font-size:14px;color:var(--ink);margin:0 0 6px;font-weight:500}.accountBtn{width:36px;height:36px;flex:none;border:0;border-radius:50%;background:#fff;color:#000;display:inline-flex;align-items:center;justify-content:center;padding:0}.accountBtn svg{width:22px;height:22px;stroke:#000}.invoice-compact label{margin:7px 0 3px}.invoice-compact input{padding:7px 9px}.invoice-compact .bankbox{padding:9px;margin:6px 0}.invoice-compact .preview{max-height:35vh}.invoice-compact .actions{margin-top:9px}.inv-number-wrap{display:flex;gap:7px;align-items:center}.inv-number-wrap input{flex:1;min-width:0}.edit-indicator{width:38px;height:38px;flex:none;border:1px solid var(--line);border-radius:9px;background:#fff;display:grid;place-items:center}
 .st-overdue{color:var(--warn)}.st-paid{color:var(--brand)}
+.monthnav{display:flex;gap:8px;align-items:center;margin:6px 0 2px}
+.monthnav[hidden]{display:none}
+.monthnav .btn{flex:1;padding:9px 6px;font-size:14px}
 </style>
 </head>
 <body>
@@ -326,7 +329,7 @@ async function syncNow(){
     if(r2.error) throw r2.error;
     if(state.clearLocal){ localStorage.removeItem(state.importKey || ('petrounds:data:' + state.user)); state.clearLocal = false; }
     setSync('Saved');
-  } catch(e){ setSync('Not saved. Check your connection.', true); }
+  } catch(e){ console.error('sync failed', e); state.syncDetail = (e && (e.message || e.details)) || String(e); setSync('Not saved. Check your connection.', true); }
 }
 async function loadCloud(){
   const [v, st] = await Promise.all([sb.from('visits').select('*').order('date').limit(5000), sb.from('settings').select('*').maybeSingle()]);
@@ -491,6 +494,7 @@ function render(){
     <div id="scheduleContent" class="view-content">
     ${statusHtml()}
     ${dueWeeks().map(mk => `<div class="banner"><span>The week of ${fmtDay(parse(mk))} has ended. Its invoices are ready to send.</span><button class="btn primary" data-inv="${mk}">Review and send invoices</button></div>`).join('')}
+    <div id="monthNav" class="monthnav"><button type="button" class="btn" data-moff="-1" aria-label="Previous month">‹ Previous</button>${state.offset ? '<button type="button" class="btn" data-moff="0">This month</button>' : ''}<button type="button" class="btn" data-moff="1" aria-label="Next month">Next ›</button></div>
     <div id="monthContent">${state.loading ? '<div class="skel" style="height:300px" aria-hidden="true"></div>' : months.map(monthHtml).join('')}</div>
     <div id="alternateContent" hidden></div>
     </div>
@@ -521,6 +525,7 @@ function render(){
     render();
   };
   $('#logoutBottom').onclick = doLogout;
+  document.querySelectorAll('[data-moff]').forEach(b => b.onclick = () => { state.offset = b.dataset.moff === '0' ? 0 : (state.offset || 0) + Number(b.dataset.moff); render(); });
   $('#add').onclick = () => openAdd(todayKey);
   $('#editVisits').onclick = openEditList;
   $('#clearVisits').onclick = openClearVisits;
@@ -550,6 +555,7 @@ function capacityHtml(months){
 function setScheduleView(view){
   state.view = view;
   const cap = $('#capacityBox'); if(cap) cap.hidden = view !== 'quarter';
+  const mnav = $('#monthNav'); if(mnav) mnav.hidden = !(view === 'month' || view === 'quarter');
   document.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
   const monthBox=$('#monthContent'), alt=$('#alternateContent'); if(!monthBox||!alt)return;
   if(view==='month'||view==='quarter'){
@@ -641,12 +647,14 @@ function renderWeeks(){
   el.removeAttribute('aria-busy');
   const todayMon = key(mondayOf(new Date()));
   const nArch = Object.keys(state.archived || {}).length;
-  let html = `<h3>Weekly Summary</h3><p class="sub">Your next 4 weeks are shown below. Mark a week ready for invoicing when its visits are final. It moves to History automatically once all invoices have been sent.</p>`;
-  let shown = 0;
-  for(let i = 0; shown < 4 && i < 20; i++){
+  let html = `<h3>Weekly Summary</h3><p class="sub">This week and the next 3 weeks are shown below, even when they run into the next month. Mark a week ready for invoicing when its visits are final. It moves to History automatically once all invoices have been sent.</p>`;
+  for(let i = 0; i < 4; i++){
     const d = addDays(parse(todayMon), i*7), mk = key(d), end = addDays(d, 6);
-    if(isArchived(mk)) continue;
-    shown++;
+    if(isArchived(mk)){
+      const av = weekVisits(mk);
+      html += `<div class="wk" data-week="${mk}"><div class="info"><div class="wk-date-row"><b>${fmtDay(d)} to ${fmtDay(end)}</b><button class="btn wk-date-action" data-hist="${mk}">In History</button></div><div class="meta"><small>${av.length} visit${av.length === 1 ? '' : 's'} • ${money(weekTotal(mk))}</small></div></div></div>`;
+      continue;
+    }
     const vs = weekVisits(mk), lk = !!state.locked[mk];
     html += `<div class="wk${lk ? ' is-locked' : ''}" data-week="${mk}">
       <div class="info"><div class="wk-date-row"><b>${fmtDay(d)} to ${fmtDay(end)}</b>${lk
@@ -661,11 +669,13 @@ function renderWeeks(){
     if(!canWrite()) return blocked();
     if(!confirm('Lock this week? Its visits can no longer be edited.')) return;
     state.locked[mk] = true;
-    save(); render();
+    save(); if(sb){ clearTimeout(syncTimer); syncNow(); }   // put the lock on the server straight away
+    render();
   });
   document.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => openInvoices(b.dataset.inv));
   el.querySelectorAll('[data-send]').forEach(b => b.onclick = () => openSummary(b.dataset.send));
   el.querySelectorAll('[data-unlock]').forEach(b => b.onclick = () => unlockWeek(b.dataset.unlock));
+  el.querySelectorAll('[data-hist]').forEach(b => b.onclick = () => openArchivedWeek(b.dataset.hist));
 }
 
 /* ---------- dialogs ---------- */
@@ -1121,7 +1131,7 @@ async function reviewInvoiceClient(mk, clients, index, terms){
     try{
       let invoice=(state.invDb||{})[keyInv];
       if(!invoice){
-        if(!(await ensureWeekLockSaved(mk))) throw new Error('Could not save the week lock. Check your connection and try again.');
+        if(!(await ensureWeekLockSaved(mk))) throw new Error('Could not save the week lock' + (state.syncDetail ? ': ' + state.syncDetail : '. Check your connection and try again.'));
         const {error}=await sb.rpc('create_invoice',{p_week:mk,p_customer_email:h.email,p_terms:terms});
         await loadInvoices(); invoice=(state.invDb||{})[keyInv];
         if(!invoice && error){
@@ -1209,7 +1219,7 @@ function openInvoiceDialog(mk, h){
     const n = parseInt($('#pt').value, 10), msg = $('#im'), b = $('#mk');
     if(!(n >= 0 && n <= 365)){ msg.textContent = 'Enter payment terms between 0 and 365 days.'; return; }
     b.disabled = true; b.textContent = 'Creating…'; msg.textContent = '';
-    if(!(await ensureWeekLockSaved(mk))){ b.disabled = false; b.textContent = 'Create invoice'; msg.textContent = 'Could not save the week lock. Check your connection and try again.'; return; }
+    if(!(await ensureWeekLockSaved(mk))){ b.disabled = false; b.textContent = 'Create invoice'; msg.textContent = 'Could not save the week lock' + (state.syncDetail ? ': ' + state.syncDetail : '. Check your connection and try again.'); return; }
     const { error } = await sb.rpc('create_invoice', {p_week: mk, p_customer_email: h.email, p_terms: n});
     await loadInvoices();
     const inv = state.invDb[mk + '|' + h.email];
