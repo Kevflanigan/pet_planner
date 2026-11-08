@@ -266,9 +266,22 @@ function load(){
   try { const s = JSON.parse(localStorage.getItem('petrounds:data:'+state.user)); if(s){ state.visits = s.visits||[]; state.locked = s.locked||{}; state.invoices = s.invoices||{}; state.pay = s.pay||''; state.archived = s.archived||{}; state.invPrefix = s.invPrefix||''; } } catch(e){}
 }
 function canWrite(){ return !sb || !state.ent || state.ent.has_access; }
+function accessEndedText(){
+  const trial = !state.ent || state.ent.access_type === 'free_trial';
+  return trial
+    ? 'Your free trial has ended. Please subscribe to continue adding new visits and sending invoices. You can still view all your visits and invoices.'
+    : 'Your subscription has ended. Please renew to continue adding new visits and sending invoices. You can still view all your visits and invoices.';
+}
+function openSubscribe(){
+  openContact();
+  const m = $('#cm'); if(m) m.value = 'Hello, I would like to subscribe to Pets Behaving.\nMy account email is ' + (state.user || '') + '.';
+}
 function blocked(){
-  show(`<h2>Your access has ended</h2><p class="empty">You can still log in and view your visits. Adding or changing visits needs an active trial or subscription.</p><div class="actions"><button class="btn primary" id="x">OK</button></div>`);
+  const trial = !state.ent || state.ent.access_type === 'free_trial';
+  show(`<h2>${trial ? 'Your free trial has ended' : 'Your subscription has ended'}</h2><p class="empty">${accessEndedText()}</p>
+    <div class="actions"><button class="btn" id="x">Close</button><button class="btn primary" id="sub">Contact us to subscribe</button></div>`);
   $('#x').onclick = close;
+  $('#sub').onclick = openSubscribe;
 }
 function save(){
   if(sb){
@@ -455,7 +468,7 @@ function renderAuth(){
 
 function statusHtml(){
   const e = sb && state.ent; if(!e) return '';
-  if(!e.has_access) return `<div class="banner warn"><span>Your access has ended. You can still view your visits, but adding or changing them needs an active trial or subscription.</span></div>`;
+  if(!e.has_access) return `<div class="banner warn"><span>${accessEndedText()}</span><button type="button" class="btn primary" id="subscribeBtn">Contact us to subscribe</button></div>`;
   const d = e.days_remaining, end = fmtLong(new Date(e.subscription_end));
   const t = e.access_reason === 'free_trial' ? `Free trial: ${d} day${d === 1 ? '' : 's'} left (ends ${end})`
     : e.access_reason === 'referral_reward' ? `Free referral months: access until ${end}`
@@ -548,6 +561,7 @@ function render(){
   };
   $('#logoutBottom').onclick = doLogout;
   document.querySelectorAll('[data-moff]').forEach(b => b.onclick = () => { state.offset = b.dataset.moff === '0' ? 0 : (state.offset || 0) + Number(b.dataset.moff); render(); });
+  if($('#subscribeBtn')) $('#subscribeBtn').onclick = openSubscribe;
   const syncEl = $('#sync'); if(syncEl){ syncEl.style.cursor = 'pointer'; syncEl.onclick = () => { if(state.syncErr){ setSync('Saving…'); syncNow(); } }; }
   $('#add').onclick = () => openAdd(todayKey);
   $('#editVisits').onclick = openEditList;
