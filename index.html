@@ -475,6 +475,23 @@ function statusHtml(){
     : `${e.access_type === 'yearly' ? 'Yearly' : 'Monthly'} plan · ${e.auto_renew ? 'renews' : 'ends'} ${end}`;
   return `<p class="hint">${esc(t)}</p>`;
 }
+function accessLine(){
+  const e = sb && state.ent; if(!e) return '';
+  if(!e.has_access) return accessEndedText();
+  const d = e.days_remaining, end = fmtLong(new Date(e.subscription_end));
+  return e.access_reason === 'free_trial' ? `Free trial: ${d} day${d === 1 ? '' : 's'} left (ends ${end})`
+    : e.access_reason === 'referral_reward' ? `Free referral months: access until ${end}`
+    : `${e.access_type === 'yearly' ? 'Yearly' : 'Monthly'} plan · ${e.auto_renew ? 'renews' : 'ends'} ${end}`;
+}
+function openAccount(){
+  show(`<h2>Account</h2>
+    <div style="margin-bottom:8px"><b>${esc(displayName())}</b><br><small style="color:var(--mute)">${esc(state.user)}</small></div>
+    ${accessLine() ? `<p class="empty" style="margin:0 0 12px">${esc(accessLine())}</p>` : ''}
+    ${inviteHtml() || '<p class="empty">Invite codes are available once you are signed in to your account.</p>'}
+    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+  $('#x').onclick = close;
+  if($('#share')) $('#share').onclick = shareCode;
+}
 function inviteHtml(){
   if(!sb || !state.share) return '';
   const e = state.ent || {}, refs = state.refs || [], paying = refs.filter(r => r.status !== 'pending').length;
@@ -534,11 +551,10 @@ function render(){
     <div id="alternateContent" hidden></div>
     </div>
     <section class="weeks" id="weeks"></section>
-    ${inviteHtml()}
     <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
   $('#avatarBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#avatarBtn').setAttribute('aria-expanded', String(!m.hidden)); };
-  $('#accountBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; };
+  $('#accountBtn').onclick = () => { $('#acctMenu').hidden = true; openAccount(); };
   const goto = {run: () => openRun(todayKey), invlist: openInvoiceList, earn: openEarnings, xvis: exportVisits, xinv: exportInvoices};
   document.querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { $('#acctMenu').hidden = true; goto[b.dataset.mi](); });
   const rt = $('#remToggle');
@@ -813,8 +829,9 @@ function openAdd(k, ed){
     <div class="row"><div><label for="f-addr">Address</label><input type="text" id="f-addr" required></div>
     <div><label for="f-pc">Postcode</label><input type="text" id="f-pc" required autocapitalize="characters"></div></div>
     <label>Visit time slots (select all that apply)</label><div class="choices">${Object.keys(SLOTS).map((s,i)=>`<label><input type="checkbox" name="slot" value="${s}" ${i===0?'checked':''}><span>${s}</span></label>`).join('')}</div>
-    <label for="f-price">Price for this visit (£)</label><input type="number" id="f-price" min="0" step="0.5" inputmode="decimal" required>
+    <label for="f-price">Price per visit (£)</label><input type="number" id="f-price" min="0" step="0.5" inputmode="decimal" required>
     <p class="empty" id="priceHint" style="margin:4px 0 0;font-size:13px"></p>
+    <p id="priceTotal" style="margin:6px 0 0;font-size:15px;font-weight:700;color:var(--brand)"></p>
     <label for="f-time">Exact time</label><input type="time" id="f-time" value="08:00" required>
     ${ed && ed.id ? '' : `<div class="row"><div><label for="f-rep">Repeat</label><select id="f-rep"><option value="">Does not repeat</option><option value="d">Every day</option><option value="wd">Every weekday</option><option value="w">Every week, same day</option></select></div>
     <div><label for="f-until">Repeat until</label><input type="date" id="f-until"></div></div>`}
@@ -832,16 +849,23 @@ function openAdd(k, ed){
   let priceEdited = false;
   const syncPrice = () => {
     const d = $('#f-date').value, def = d ? priceFor(d) : WEEKDAY_PRICE;
-    $('#priceHint').textContent = `Standard rate for this day: ${money(def)}. Change it for a longer or special visit.`;
+    $('#priceHint').textContent = `Standard rate for this day: ${money(def)} per visit. Change it for a longer or special visit.`;
     if(!priceEdited) $('#f-price').value = def;
+    updateTotal();
   };
-  $('#f-price').oninput = () => { priceEdited = true; };
+  const slotCount = () => Math.max(1, f.querySelectorAll('[name=slot]:checked').length);
+  const updateTotal = () => {
+    const pp = parseFloat($('#f-price').value), n = slotCount();
+    $('#priceTotal').textContent = isFinite(pp) ? (n > 1 ? `${n} visits × ${money(pp)} = ${money(Math.round(pp * n * 100) / 100)} for the day` : `1 visit: ${money(pp)}`) : '';
+  };
+  $('#f-price').oninput = () => { priceEdited = true; updateTotal(); };
   $('#f-date').onchange = syncPrice;
   syncPrice();
-  f.querySelectorAll('[name=slot]').forEach(r => r.onchange = () => { const selected=[...f.querySelectorAll('[name=slot]:checked')].map(x=>x.value); if(selected.length) $('#f-time').value=SLOTS[selected[0]]; });
+  f.querySelectorAll('[name=slot]').forEach(r => r.onchange = () => { const selected=[...f.querySelectorAll('[name=slot]:checked')].map(x=>x.value); if(selected.length) $('#f-time').value=SLOTS[selected[0]]; updateTotal(); });
   $('#f-time').onchange = e => {
     const h = +e.target.value.slice(0,2), s = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
     f.querySelector(`[name=slot][value=${s}]`).checked = true;
+    updateTotal();
   };
   $('#f-acc').onchange = e => { $('#kcWrap').hidden = !e.target.value.startsWith('Key safe'); };
   const fill = (v, withDate) => {
@@ -853,7 +877,7 @@ function openAdd(k, ed){
     const selectedSlots = Array.isArray(v.slots) ? v.slots : String(v.slot || 'Morning').split(',').map(x=>x.trim());
     f.querySelectorAll('[name=slot]').forEach(el => el.checked = selectedSlots.includes(el.value));
     $('#f-acc').value = v.access || ACCESS[0]; $('#kcWrap').hidden = !$('#f-acc').value.startsWith('Key safe'); set('f-kc',v.keycode);
-    if(typeof v.price === 'number'){ set('f-price',v.price); priceEdited = true; }
+    if(typeof v.price === 'number'){ set('f-price', Math.round(v.price / Math.max(1, selectedSlots.length) * 100) / 100); priceEdited = true; }
     syncPrice();
   };
   if($('#f-pet')) $('#f-pet').onchange = e => { if(e.target.value !== '') fill(pets[e.target.value]); };
@@ -868,7 +892,7 @@ function openAdd(k, ed){
     const selectedSlots = [...f.querySelectorAll('[name=slot]:checked')].map(el=>el.value);
     if(!selectedSlots.length){ $('#fm').textContent = 'Select at least one visit time slot.'; return; }
     const base = {
-      price: Math.round(price*100)/100,
+      price: Math.round(price * selectedSlots.length * 100) / 100,
       vet: $('#f-vet').value.trim(), hname: $('#f-hn').value.trim(), hemail: $('#f-he').value.trim().toLowerCase(), name: $('#f-name').value.trim(), type: f.type.value, address: $('#f-addr').value.trim(),
       postcode: $('#f-pc').value.trim().toUpperCase(), slots: selectedSlots, slot: selectedSlots.join(', '), time: $('#f-time').value,
       food: $('#f-food').value.trim(), meds: $('#f-meds').value.trim(), notes: $('#f-notes').value.trim(),
@@ -888,7 +912,7 @@ function openAdd(k, ed){
         }
       }
       const open = dates.filter(x => !isLocked(x));
-      open.forEach((x,i) => state.visits.push({...base, date:x, id:uid(), price: (rp && !priceEdited) ? undefined : base.price}));
+      open.forEach((x,i) => state.visits.push({...base, date:x, id:uid(), price: (rp && !priceEdited) ? priceFor(x) * selectedSlots.length : base.price}));
       if(open.length < dates.length) alert((dates.length - open.length) + ' visit(s) in locked weeks were skipped.');
     }
     save(); close(); render();
