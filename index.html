@@ -536,9 +536,11 @@ function openAccount(){
     <div style="margin-bottom:8px"><b>${esc(displayName())}</b><br><small style="color:var(--mute)">${esc(state.user)}</small></div>
     ${accessLine() ? `<p class="empty" style="margin:0 0 12px">${esc(accessLine())}</p>` : ''}
     ${inviteHtml() || '<p class="empty">Invite codes are available once you are signed in to your account.</p>'}
-    <div class="actions"><button class="btn primary" id="x">Close</button></div>`);
+    <section class="weeks" style="margin-top:12px"><h3>Contact us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn" style="width:100%">Contact us</button></section>
+    <div class="actions"><button class="btn" id="x">Close</button></div>`);
   $('#x').onclick = close;
   if($('#share')) $('#share').onclick = shareCode;
+  $('#contactBtn').onclick = openContact;
 }
 function inviteHtml(){
   if(!sb || !state.share) return '';
@@ -598,7 +600,6 @@ function render(){
     <div id="alternateContent" hidden></div>
     </div>
     <section class="weeks" id="weeks"></section>
-    <section class="weeks" id="contact"><h3>Contact Us</h3><p class="sub">Have a question, need help or want to get in touch?</p><button class="btn primary" id="contactBtn">Contact Us</button></section>
   </main>`;
   $('#avatarBtn').onclick = e => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#avatarBtn').setAttribute('aria-expanded', String(!m.hidden)); };
   $('#accountBtn').onclick = () => { $('#acctMenu').hidden = true; openAccount(); };
@@ -631,7 +632,6 @@ function render(){
   $('#clearVisits').onclick = openClearVisits;
   document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => setScheduleView(btn.dataset.view));
   if($('#share')) $('#share').onclick = shareCode;
-  $('#contactBtn').onclick = openContact;
   document.querySelectorAll('.day[data-k]').forEach(b => b.onclick = () => openDay(b.dataset.k));
   renderWeeks();
   setScheduleView(state.view || 'month');
